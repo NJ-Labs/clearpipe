@@ -1,0 +1,1006 @@
+'use client';
+
+import { useCallback } from 'react';
+import { X, Settings, Database, GitBranch, Wand2, Cpu, BarChart3, FileText } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { usePipelineStore } from '@/stores/pipeline-store';
+import type {
+  PipelineNodeData,
+  DatasetNodeData,
+  VersioningNodeData,
+  PreprocessingNodeData,
+  TrainingNodeData,
+  ExperimentNodeData,
+  ReportNodeData,
+  DatasetConfig,
+  VersioningConfig,
+  PreprocessingConfig,
+  TrainingConfig,
+  ExperimentConfig as ExperimentConfigType,
+  ReportConfig as ReportConfigType,
+} from '@/types/pipeline';
+
+const nodeIcons: Record<string, React.ReactNode> = {
+  dataset: <Database className="h-5 w-5" />,
+  versioning: <GitBranch className="h-5 w-5" />,
+  preprocessing: <Wand2 className="h-5 w-5" />,
+  training: <Cpu className="h-5 w-5" />,
+  experiment: <BarChart3 className="h-5 w-5" />,
+  report: <FileText className="h-5 w-5" />,
+};
+
+export function NodeConfigPanel() {
+  const { nodes, selectedNodeId, selectNode, updateNodeData } = usePipelineStore();
+  
+  const selectedNode = nodes.find((n) => n.id === selectedNodeId);
+  const nodeData = selectedNode?.data as PipelineNodeData | undefined;
+  const nodeType = nodeData?.type;
+  
+  const handleClose = useCallback(() => {
+    selectNode(null);
+  }, [selectNode]);
+  
+  const handleUpdateConfig = useCallback(
+    (updates: Record<string, unknown>) => {
+      if (!selectedNodeId || !nodeData) return;
+      const currentConfig = nodeData.config as Record<string, unknown>;
+      updateNodeData(selectedNodeId, {
+        config: { ...currentConfig, ...updates },
+      } as unknown as Partial<PipelineNodeData>);
+    },
+    [nodeData, selectedNodeId, updateNodeData]
+  );
+  
+  const handleUpdateBase = useCallback(
+    (updates: Partial<PipelineNodeData>) => {
+      if (!selectedNodeId) return;
+      updateNodeData(selectedNodeId, updates);
+    },
+    [selectedNodeId, updateNodeData]
+  );
+  
+  if (!selectedNode || !selectedNodeId || !nodeData) {
+    return (
+      <div className="h-full flex flex-col">
+        <div className="p-4 border-b pl-10">
+          <div className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            <h2 className="font-semibold text-lg">Configuration</h2>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Select a node to configure
+          </p>
+        </div>
+        <div className="flex-1 flex items-center justify-center p-4">
+          <p className="text-sm text-muted-foreground text-center">
+            Click on a node in the canvas to view and edit its configuration
+          </p>
+        </div>
+      </div>
+    );
+  }
+  
+  // After the guard, nodeData is guaranteed to exist, so nodeType is defined
+  const safeNodeType = nodeData.type;
+  
+  const renderConfigPanel = () => {
+    switch (safeNodeType) {
+      case 'dataset':
+        return (
+          <DatasetConfigPanel
+            config={(nodeData as DatasetNodeData).config}
+            onUpdate={handleUpdateConfig}
+          />
+        );
+      case 'versioning':
+        return (
+          <VersioningConfigPanel
+            config={(nodeData as VersioningNodeData).config}
+            onUpdate={handleUpdateConfig}
+          />
+        );
+      case 'preprocessing':
+        return (
+          <PreprocessingConfigPanel
+            config={(nodeData as PreprocessingNodeData).config}
+            onUpdate={handleUpdateConfig}
+          />
+        );
+      case 'training':
+        return (
+          <TrainingConfigPanel
+            config={(nodeData as TrainingNodeData).config}
+            onUpdate={handleUpdateConfig}
+          />
+        );
+      case 'experiment':
+        return (
+          <ExperimentConfigPanel
+            config={(nodeData as ExperimentNodeData).config}
+            onUpdate={handleUpdateConfig}
+          />
+        );
+      case 'report':
+        return (
+          <ReportConfigPanel
+            config={(nodeData as ReportNodeData).config}
+            onUpdate={handleUpdateConfig}
+          />
+        );
+      default:
+        return <div>Unknown node type</div>;
+    }
+  };
+  
+  return (
+    <div className="h-full flex flex-col">
+      <div className="p-4 border-b pl-10">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {nodeIcons[safeNodeType]}
+            <h2 className="font-semibold text-lg">
+              {safeNodeType.charAt(0).toUpperCase() + safeNodeType.slice(1)} Node
+            </h2>
+          </div>
+          <Button variant="ghost" size="icon" onClick={handleClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <Badge variant="outline" className="w-fit mt-1">
+          ID: {selectedNodeId}
+        </Badge>
+      </div>
+      
+      <ScrollArea className="flex-1">
+        <div className="p-4 space-y-6">
+          <Tabs defaultValue="config" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="config">Configuration</TabsTrigger>
+              <TabsTrigger value="general">General</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="config" className="mt-4 space-y-4">
+              {renderConfigPanel()}
+            </TabsContent>
+            
+            <TabsContent value="general" className="mt-4 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="label">Label</Label>
+                <Input
+                  id="label"
+                  value={nodeData.label}
+                  onChange={(e) => handleUpdateBase({ label: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={nodeData.description}
+                  onChange={(e) => handleUpdateBase({ description: e.target.value })}
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Badge variant={nodeData.status === 'completed' ? 'default' : 'secondary'}>
+                  {nodeData.status}
+                </Badge>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}
+
+// Dataset Configuration Panel
+interface DatasetConfigPanelProps {
+  config: DatasetConfig;
+  onUpdate: (updates: Partial<DatasetConfig>) => void;
+}
+
+function DatasetConfigPanel({ config, onUpdate }: DatasetConfigPanelProps) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>Data Source</Label>
+        <Select value={config.source} onValueChange={(value) => onUpdate({ source: value as DatasetConfig['source'] })}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select source" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="local">Local File</SelectItem>
+            <SelectItem value="cloud">Cloud Storage</SelectItem>
+            <SelectItem value="s3">Amazon S3</SelectItem>
+            <SelectItem value="gcs">Google Cloud Storage</SelectItem>
+            <SelectItem value="azure-blob">Azure Blob Storage</SelectItem>
+            <SelectItem value="url">URL</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      
+      <div className="space-y-2">
+        <Label htmlFor="path">Path / URL</Label>
+        <Input
+          id="path"
+          value={config.path}
+          onChange={(e) => onUpdate({ path: e.target.value })}
+          placeholder="e.g., /data/train.csv or s3://bucket/data"
+        />
+      </div>
+      
+      <div className="space-y-2">
+        <Label>File Format</Label>
+        <Select value={config.format} onValueChange={(value) => onUpdate({ format: value as DatasetConfig['format'] })}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select format" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="csv">CSV</SelectItem>
+            <SelectItem value="parquet">Parquet</SelectItem>
+            <SelectItem value="json">JSON</SelectItem>
+            <SelectItem value="arrow">Arrow</SelectItem>
+            <SelectItem value="custom">Custom</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      
+      {(config.source === 's3' || config.source === 'gcs' || config.source === 'azure-blob') && (
+        <>
+          <Separator />
+          <div className="space-y-4">
+            <Label className="text-sm font-semibold">Cloud Credentials</Label>
+            
+            {config.source === 's3' && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="accessKey">Access Key ID</Label>
+                  <Input
+                    id="accessKey"
+                    type="password"
+                    value={config.credentials?.accessKey || ''}
+                    onChange={(e) => onUpdate({ 
+                      credentials: { ...config.credentials, accessKey: e.target.value }
+                    })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="secretKey">Secret Access Key</Label>
+                  <Input
+                    id="secretKey"
+                    type="password"
+                    value={config.credentials?.secretKey || ''}
+                    onChange={(e) => onUpdate({ 
+                      credentials: { ...config.credentials, secretKey: e.target.value }
+                    })}
+                  />
+                </div>
+              </>
+            )}
+            
+            {config.source === 'azure-blob' && (
+              <div className="space-y-2">
+                <Label htmlFor="connectionString">Connection String</Label>
+                <Input
+                  id="connectionString"
+                  type="password"
+                  value={config.credentials?.connectionString || ''}
+                  onChange={(e) => onUpdate({ 
+                    credentials: { ...config.credentials, connectionString: e.target.value }
+                  })}
+                />
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Versioning Configuration Panel
+interface VersioningConfigPanelProps {
+  config: VersioningConfig;
+  onUpdate: (updates: Partial<VersioningConfig>) => void;
+}
+
+function VersioningConfigPanel({ config, onUpdate }: VersioningConfigPanelProps) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>Versioning Tool</Label>
+        <Select value={config.tool} onValueChange={(value) => onUpdate({ tool: value as VersioningConfig['tool'] })}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select tool" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="dvc">DVC</SelectItem>
+            <SelectItem value="git-lfs">Git LFS</SelectItem>
+            <SelectItem value="clearml-data">ClearML Data</SelectItem>
+            <SelectItem value="mlflow-artifacts">MLflow Artifacts</SelectItem>
+            <SelectItem value="custom">Custom</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      
+      <div className="space-y-2">
+        <Label htmlFor="version">Version Tag</Label>
+        <Input
+          id="version"
+          value={config.version}
+          onChange={(e) => onUpdate({ version: e.target.value })}
+          placeholder="e.g., v1.0.0"
+        />
+      </div>
+      
+      <div className="space-y-2">
+        <Label htmlFor="remoteUrl">Remote URL</Label>
+        <Input
+          id="remoteUrl"
+          value={config.remoteUrl || ''}
+          onChange={(e) => onUpdate({ remoteUrl: e.target.value })}
+          placeholder="e.g., s3://bucket/dvc-cache"
+        />
+      </div>
+      
+      <Separator />
+      <div className="space-y-4">
+        <Label className="text-sm font-semibold">Credentials</Label>
+        <div className="space-y-2">
+          <Label htmlFor="token">Access Token</Label>
+          <Input
+            id="token"
+            type="password"
+            value={config.credentials?.token || ''}
+            onChange={(e) => onUpdate({ 
+              credentials: { ...config.credentials, token: e.target.value }
+            })}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Preprocessing Configuration Panel
+interface PreprocessingConfigPanelProps {
+  config: PreprocessingConfig;
+  onUpdate: (updates: Partial<PreprocessingConfig>) => void;
+}
+
+function PreprocessingConfigPanel({ config, onUpdate }: PreprocessingConfigPanelProps) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>Preprocessing Steps</Label>
+        <div className="space-y-2">
+          {config.steps.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No steps configured</p>
+          ) : (
+            config.steps.map((step, index) => (
+              <Card key={step.id} className="p-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{index + 1}. {step.name}</span>
+                  <Badge variant={step.enabled ? 'default' : 'secondary'}>
+                    {step.type}
+                  </Badge>
+                </div>
+              </Card>
+            ))
+          )}
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={() => {
+            const newStep = {
+              id: `step-${Date.now()}`,
+              name: 'New Step',
+              type: 'custom' as const,
+              params: {},
+              enabled: true,
+            };
+            onUpdate({ steps: [...config.steps, newStep] });
+          }}
+        >
+          Add Step
+        </Button>
+      </div>
+      
+      <Separator />
+      
+      <div className="space-y-2">
+        <Label htmlFor="customCode">Custom Preprocessing Code</Label>
+        <Textarea
+          id="customCode"
+          value={config.customCode || ''}
+          onChange={(e) => onUpdate({ customCode: e.target.value })}
+          placeholder="# Python preprocessing code..."
+          className="font-mono text-sm"
+          rows={6}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Training Configuration Panel
+interface TrainingConfigPanelProps {
+  config: TrainingConfig;
+  onUpdate: (updates: Partial<TrainingConfig>) => void;
+}
+
+function TrainingConfigPanel({ config, onUpdate }: TrainingConfigPanelProps) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>ML Framework</Label>
+        <Select value={config.framework} onValueChange={(value) => onUpdate({ framework: value as TrainingConfig['framework'] })}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select framework" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="pytorch">PyTorch</SelectItem>
+            <SelectItem value="tensorflow">TensorFlow</SelectItem>
+            <SelectItem value="sklearn">Scikit-Learn</SelectItem>
+            <SelectItem value="xgboost">XGBoost</SelectItem>
+            <SelectItem value="lightgbm">LightGBM</SelectItem>
+            <SelectItem value="custom">Custom</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      
+      <div className="space-y-2">
+        <Label>Cloud Provider</Label>
+        <Select value={config.cloudProvider} onValueChange={(value) => onUpdate({ cloudProvider: value as TrainingConfig['cloudProvider'] })}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select provider" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="local">Local</SelectItem>
+            <SelectItem value="gcp">Google Cloud Platform</SelectItem>
+            <SelectItem value="aws">Amazon Web Services</SelectItem>
+            <SelectItem value="azure">Microsoft Azure</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      
+      <div className="space-y-2">
+        <Label htmlFor="instanceType">Instance Type</Label>
+        <Input
+          id="instanceType"
+          value={config.instanceType}
+          onChange={(e) => onUpdate({ instanceType: e.target.value })}
+          placeholder="e.g., n1-standard-8"
+        />
+      </div>
+      
+      <Separator />
+      <Label className="text-sm font-semibold">Training Parameters</Label>
+      
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="epochs">Epochs</Label>
+          <Input
+            id="epochs"
+            type="number"
+            value={config.epochs || ''}
+            onChange={(e) => onUpdate({ epochs: parseInt(e.target.value) || undefined })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="batchSize">Batch Size</Label>
+          <Input
+            id="batchSize"
+            type="number"
+            value={config.batchSize || ''}
+            onChange={(e) => onUpdate({ batchSize: parseInt(e.target.value) || undefined })}
+          />
+        </div>
+      </div>
+      
+      <div className="space-y-2">
+        <Label htmlFor="learningRate">Learning Rate</Label>
+        <Input
+          id="learningRate"
+          type="number"
+          step="0.0001"
+          value={config.learningRate || ''}
+          onChange={(e) => onUpdate({ learningRate: parseFloat(e.target.value) || undefined })}
+        />
+      </div>
+      
+      {config.cloudProvider !== 'local' && (
+        <>
+          <Separator />
+          <Label className="text-sm font-semibold">Cloud Credentials</Label>
+          
+          {config.cloudProvider === 'gcp' && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="gcpProjectId">GCP Project ID</Label>
+                <Input
+                  id="gcpProjectId"
+                  value={config.credentials.gcpProjectId || ''}
+                  onChange={(e) => onUpdate({ 
+                    credentials: { ...config.credentials, gcpProjectId: e.target.value }
+                  })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="gcpServiceAccountKey">Service Account Key (JSON)</Label>
+                <Textarea
+                  id="gcpServiceAccountKey"
+                  value={config.credentials.gcpServiceAccountKey || ''}
+                  onChange={(e) => onUpdate({ 
+                    credentials: { ...config.credentials, gcpServiceAccountKey: e.target.value }
+                  })}
+                  className="font-mono text-xs"
+                  rows={4}
+                />
+              </div>
+            </>
+          )}
+          
+          {config.cloudProvider === 'aws' && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="awsAccessKeyId">AWS Access Key ID</Label>
+                <Input
+                  id="awsAccessKeyId"
+                  type="password"
+                  value={config.credentials.awsAccessKeyId || ''}
+                  onChange={(e) => onUpdate({ 
+                    credentials: { ...config.credentials, awsAccessKeyId: e.target.value }
+                  })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="awsSecretAccessKey">AWS Secret Access Key</Label>
+                <Input
+                  id="awsSecretAccessKey"
+                  type="password"
+                  value={config.credentials.awsSecretAccessKey || ''}
+                  onChange={(e) => onUpdate({ 
+                    credentials: { ...config.credentials, awsSecretAccessKey: e.target.value }
+                  })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="awsRegion">AWS Region</Label>
+                <Input
+                  id="awsRegion"
+                  value={config.credentials.awsRegion || ''}
+                  onChange={(e) => onUpdate({ 
+                    credentials: { ...config.credentials, awsRegion: e.target.value }
+                  })}
+                  placeholder="e.g., us-east-1"
+                />
+              </div>
+            </>
+          )}
+          
+          {config.cloudProvider === 'azure' && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="azureSubscriptionId">Subscription ID</Label>
+                <Input
+                  id="azureSubscriptionId"
+                  value={config.credentials.azureSubscriptionId || ''}
+                  onChange={(e) => onUpdate({ 
+                    credentials: { ...config.credentials, azureSubscriptionId: e.target.value }
+                  })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="azureTenantId">Tenant ID</Label>
+                <Input
+                  id="azureTenantId"
+                  value={config.credentials.azureTenantId || ''}
+                  onChange={(e) => onUpdate({ 
+                    credentials: { ...config.credentials, azureTenantId: e.target.value }
+                  })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="azureClientId">Client ID</Label>
+                <Input
+                  id="azureClientId"
+                  value={config.credentials.azureClientId || ''}
+                  onChange={(e) => onUpdate({ 
+                    credentials: { ...config.credentials, azureClientId: e.target.value }
+                  })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="azureClientSecret">Client Secret</Label>
+                <Input
+                  id="azureClientSecret"
+                  type="password"
+                  value={config.credentials.azureClientSecret || ''}
+                  onChange={(e) => onUpdate({ 
+                    credentials: { ...config.credentials, azureClientSecret: e.target.value }
+                  })}
+                />
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// Experiment Configuration Panel
+interface ExperimentConfigPanelProps {
+  config: ExperimentConfigType;
+  onUpdate: (updates: Partial<ExperimentConfigType>) => void;
+}
+
+function ExperimentConfigPanel({ config, onUpdate }: ExperimentConfigPanelProps) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>Experiment Tracker</Label>
+        <Select value={config.tracker} onValueChange={(value) => onUpdate({ tracker: value as ExperimentConfigType['tracker'] })}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select tracker" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="clearml">ClearML</SelectItem>
+            <SelectItem value="mlflow">MLflow</SelectItem>
+            <SelectItem value="wandb">Weights & Biases</SelectItem>
+            <SelectItem value="comet">Comet ML</SelectItem>
+            <SelectItem value="none">None</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      
+      <div className="space-y-2">
+        <Label htmlFor="projectName">Project Name</Label>
+        <Input
+          id="projectName"
+          value={config.projectName}
+          onChange={(e) => onUpdate({ projectName: e.target.value })}
+        />
+      </div>
+      
+      <div className="space-y-2">
+        <Label htmlFor="experimentName">Experiment Name</Label>
+        <Input
+          id="experimentName"
+          value={config.experimentName}
+          onChange={(e) => onUpdate({ experimentName: e.target.value })}
+        />
+      </div>
+      
+      {config.tracker !== 'none' && (
+        <>
+          <Separator />
+          <Label className="text-sm font-semibold">Tracker Credentials</Label>
+          
+          {config.tracker === 'clearml' && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="clearmlApiHost">API Host</Label>
+                <Input
+                  id="clearmlApiHost"
+                  value={config.credentials.clearmlApiHost || ''}
+                  onChange={(e) => onUpdate({ 
+                    credentials: { ...config.credentials, clearmlApiHost: e.target.value }
+                  })}
+                  placeholder="https://api.clear.ml"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="clearmlWebHost">Web Host</Label>
+                <Input
+                  id="clearmlWebHost"
+                  value={config.credentials.clearmlWebHost || ''}
+                  onChange={(e) => onUpdate({ 
+                    credentials: { ...config.credentials, clearmlWebHost: e.target.value }
+                  })}
+                  placeholder="https://app.clear.ml"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="clearmlFilesHost">Files Host</Label>
+                <Input
+                  id="clearmlFilesHost"
+                  value={config.credentials.clearmlFilesHost || ''}
+                  onChange={(e) => onUpdate({ 
+                    credentials: { ...config.credentials, clearmlFilesHost: e.target.value }
+                  })}
+                  placeholder="https://files.clear.ml"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="clearmlAccessKey">Access Key</Label>
+                <Input
+                  id="clearmlAccessKey"
+                  type="password"
+                  value={config.credentials.clearmlAccessKey || ''}
+                  onChange={(e) => onUpdate({ 
+                    credentials: { ...config.credentials, clearmlAccessKey: e.target.value }
+                  })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="clearmlSecretKey">Secret Key</Label>
+                <Input
+                  id="clearmlSecretKey"
+                  type="password"
+                  value={config.credentials.clearmlSecretKey || ''}
+                  onChange={(e) => onUpdate({ 
+                    credentials: { ...config.credentials, clearmlSecretKey: e.target.value }
+                  })}
+                />
+              </div>
+            </>
+          )}
+          
+          {config.tracker === 'mlflow' && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="mlflowTrackingUri">Tracking URI</Label>
+                <Input
+                  id="mlflowTrackingUri"
+                  value={config.credentials.mlflowTrackingUri || ''}
+                  onChange={(e) => onUpdate({ 
+                    credentials: { ...config.credentials, mlflowTrackingUri: e.target.value }
+                  })}
+                  placeholder="http://localhost:5000"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mlflowUsername">Username</Label>
+                <Input
+                  id="mlflowUsername"
+                  value={config.credentials.mlflowUsername || ''}
+                  onChange={(e) => onUpdate({ 
+                    credentials: { ...config.credentials, mlflowUsername: e.target.value }
+                  })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mlflowPassword">Password</Label>
+                <Input
+                  id="mlflowPassword"
+                  type="password"
+                  value={config.credentials.mlflowPassword || ''}
+                  onChange={(e) => onUpdate({ 
+                    credentials: { ...config.credentials, mlflowPassword: e.target.value }
+                  })}
+                />
+              </div>
+            </>
+          )}
+          
+          {config.tracker === 'wandb' && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="wandbApiKey">API Key</Label>
+                <Input
+                  id="wandbApiKey"
+                  type="password"
+                  value={config.credentials.wandbApiKey || ''}
+                  onChange={(e) => onUpdate({ 
+                    credentials: { ...config.credentials, wandbApiKey: e.target.value }
+                  })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="wandbEntity">Entity / Team</Label>
+                <Input
+                  id="wandbEntity"
+                  value={config.credentials.wandbEntity || ''}
+                  onChange={(e) => onUpdate({ 
+                    credentials: { ...config.credentials, wandbEntity: e.target.value }
+                  })}
+                />
+              </div>
+            </>
+          )}
+          
+          {config.tracker === 'comet' && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="cometApiKey">API Key</Label>
+                <Input
+                  id="cometApiKey"
+                  type="password"
+                  value={config.credentials.cometApiKey || ''}
+                  onChange={(e) => onUpdate({ 
+                    credentials: { ...config.credentials, cometApiKey: e.target.value }
+                  })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cometWorkspace">Workspace</Label>
+                <Input
+                  id="cometWorkspace"
+                  value={config.credentials.cometWorkspace || ''}
+                  onChange={(e) => onUpdate({ 
+                    credentials: { ...config.credentials, cometWorkspace: e.target.value }
+                  })}
+                />
+              </div>
+            </>
+          )}
+        </>
+      )}
+      
+      <Separator />
+      <Label className="text-sm font-semibold">Logging Options</Label>
+      
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="logMetrics">Log Metrics</Label>
+          <input
+            type="checkbox"
+            id="logMetrics"
+            checked={config.logMetrics}
+            onChange={(e) => onUpdate({ logMetrics: e.target.checked })}
+            className="h-4 w-4"
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="logArtifacts">Log Artifacts</Label>
+          <input
+            type="checkbox"
+            id="logArtifacts"
+            checked={config.logArtifacts}
+            onChange={(e) => onUpdate({ logArtifacts: e.target.checked })}
+            className="h-4 w-4"
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="logHyperparameters">Log Hyperparameters</Label>
+          <input
+            type="checkbox"
+            id="logHyperparameters"
+            checked={config.logHyperparameters}
+            onChange={(e) => onUpdate({ logHyperparameters: e.target.checked })}
+            className="h-4 w-4"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Report Configuration Panel
+interface ReportConfigPanelProps {
+  config: ReportConfigType;
+  onUpdate: (updates: Partial<ReportConfigType>) => void;
+}
+
+function ReportConfigPanel({ config, onUpdate }: ReportConfigPanelProps) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="reportTitle">Report Title</Label>
+        <Input
+          id="reportTitle"
+          value={config.title}
+          onChange={(e) => onUpdate({ title: e.target.value })}
+        />
+      </div>
+      
+      <div className="space-y-2">
+        <Label>Output Format</Label>
+        <Select value={config.outputFormat} onValueChange={(value) => onUpdate({ outputFormat: value as ReportConfigType['outputFormat'] })}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select format" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="html">HTML</SelectItem>
+            <SelectItem value="pdf">PDF</SelectItem>
+            <SelectItem value="markdown">Markdown</SelectItem>
+            <SelectItem value="json">JSON</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      
+      <div className="space-y-2">
+        <Label htmlFor="exportPath">Export Path</Label>
+        <Input
+          id="exportPath"
+          value={config.exportPath || ''}
+          onChange={(e) => onUpdate({ exportPath: e.target.value })}
+          placeholder="e.g., ./reports/model_report"
+        />
+      </div>
+      
+      <Separator />
+      <Label className="text-sm font-semibold">Report Sections</Label>
+      
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="includeMetrics">Include Metrics</Label>
+          <input
+            type="checkbox"
+            id="includeMetrics"
+            checked={config.includeMetrics}
+            onChange={(e) => onUpdate({ includeMetrics: e.target.checked })}
+            className="h-4 w-4"
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="includeVisualizations">Include Visualizations</Label>
+          <input
+            type="checkbox"
+            id="includeVisualizations"
+            checked={config.includeVisualizations}
+            onChange={(e) => onUpdate({ includeVisualizations: e.target.checked })}
+            className="h-4 w-4"
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="includeModelCard">Include Model Card</Label>
+          <input
+            type="checkbox"
+            id="includeModelCard"
+            checked={config.includeModelCard}
+            onChange={(e) => onUpdate({ includeModelCard: e.target.checked })}
+            className="h-4 w-4"
+          />
+        </div>
+      </div>
+      
+      <Separator />
+      
+      <div className="space-y-2">
+        <Label>Custom Sections</Label>
+        <div className="space-y-2">
+          {(!config.customSections || config.customSections.length === 0) ? (
+            <p className="text-sm text-muted-foreground">No custom sections</p>
+          ) : (
+            config.customSections.map((section) => (
+              <Card key={section.id} className="p-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{section.title}</span>
+                  <Badge variant="outline">{section.type}</Badge>
+                </div>
+              </Card>
+            ))
+          )}
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={() => {
+            const newSection = {
+              id: `section-${Date.now()}`,
+              title: 'New Section',
+              content: '',
+              type: 'text' as const,
+            };
+            onUpdate({ customSections: [...(config.customSections || []), newSection] });
+          }}
+        >
+          Add Section
+        </Button>
+      </div>
+    </div>
+  );
+}

@@ -39,6 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
 # Ignore DB JSON files and the local clearpipe DB
 *.db.json
 /clearpipe.db.json

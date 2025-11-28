@@ -26,16 +26,22 @@ import {
   FileDown,
   FileUp,
   Play,
-  Square,
   RotateCcw,
   MoreHorizontal,
   Plus,
   Trash2,
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
 } from 'lucide-react';
 import { usePipelineStore } from '@/stores/pipeline-store';
+import type { PipelineNodeData } from '@/types/pipeline';
+import { checkDatasetConnection } from '@/components/nodes';
+import { SettingsDialog } from '@/components/ui/settings-dialog';
 
 export function PipelineToolbar() {
   const {
+    nodes,
     currentPipeline,
     savedPipelines,
     isDirty,
@@ -46,10 +52,14 @@ export function PipelineToolbar() {
     exportPipeline,
     importPipeline,
     reset,
+    updateNodeStatus,
   } = usePipelineStore();
 
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [loadDialogOpen, setLoadDialogOpen] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
+  const [runResults, setRunResults] = useState<Map<string, { success: boolean; fileCount?: number; error?: string }>>(new Map());
+  const [showResults, setShowResults] = useState(false);
   const [pipelineName, setPipelineName] = useState(currentPipeline?.name || '');
   const [pipelineDescription, setPipelineDescription] = useState(
     currentPipeline?.description || ''
@@ -92,9 +102,44 @@ export function PipelineToolbar() {
     input.click();
   };
 
-  const handleRun = () => {
-    // TODO: Implement pipeline execution
-    console.log('Running pipeline...');
+  const handleRun = async () => {
+    setIsRunning(true);
+    const results = new Map<string, { success: boolean; fileCount?: number; error?: string }>();
+
+    // Find and check all dataset nodes
+    const datasetNodes = nodes.filter((node) => node.data.type === 'dataset');
+
+    if (datasetNodes.length === 0) {
+      alert('No dataset nodes found in the pipeline. Please add at least one dataset.');
+      setIsRunning(false);
+      return;
+    }
+
+    // Check each dataset node
+    for (const node of datasetNodes) {
+      const nodeData = node.data as PipelineNodeData;
+      if (nodeData.type === 'dataset') {
+        try {
+          updateNodeStatus(node.id, 'running', 'Checking connection...');
+          const result = await checkDatasetConnection(nodeData.config);
+          results.set(node.id, result);
+
+          if (result.success) {
+            updateNodeStatus(node.id, 'completed', `Found ${result.fileCount} files`);
+          } else {
+            updateNodeStatus(node.id, 'error', result.error || 'Connection failed');
+          }
+        } catch (error) {
+          const errorMsg = (error as Error).message;
+          results.set(node.id, { success: false, fileCount: 0, error: errorMsg });
+          updateNodeStatus(node.id, 'error', errorMsg);
+        }
+      }
+    }
+
+    setRunResults(results);
+    setShowResults(true);
+    setIsRunning(false);
   };
 
   return (
@@ -236,11 +281,75 @@ export function PipelineToolbar() {
 
       <div className="h-6 w-px bg-border" />
 
+      {/* Results Dialog */}
+      <Dialog open={showResults} onOpenChange={setShowResults}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Dataset Connection Results</DialogTitle>
+            <DialogDescription>
+              Connection check and file count for all datasets
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 max-h-[400px] overflow-y-auto py-4">
+            {Array.from(runResults.entries()).map(([nodeId, result]) => {
+              const node = nodes.find(n => n.id === nodeId);
+              const nodeLabel = node?.data.label || 'Unknown Dataset';
+
+              return (
+                <div key={nodeId} className="flex items-start gap-3 p-3 border rounded-lg">
+                  <div className="pt-0.5">
+                    {result.success ? (
+                      <CheckCircle2 className="w-5 h-5 text-green-500" />
+                    ) : (
+                      <AlertCircle className="w-5 h-5 text-red-500" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm">{nodeLabel}</p>
+                    {result.success ? (
+                      <p className="text-sm text-green-600 font-semibold">
+                        ✓ {result.fileCount} files found
+                      </p>
+                    ) : (
+                      <p className="text-sm text-red-600">
+                        ✗ {result.error || 'Connection failed'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowResults(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Run Controls */}
-      <Button variant="default" size="sm" onClick={handleRun}>
-        <Play className="w-4 h-4 mr-1" />
-        Run Pipeline
+      <Button 
+        variant="default" 
+        size="sm" 
+        onClick={handleRun}
+        disabled={isRunning}
+      >
+        {isRunning ? (
+          <>
+            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+            Running...
+          </>
+        ) : (
+          <>
+            <Play className="w-4 h-4 mr-1" />
+            Run Pipeline
+          </>
+        )}
       </Button>
+
+      <div className="h-6 w-px bg-border" />
+
+      {/* Settings */}
+      <SettingsDialog />
 
       {/* More Options */}
       <DropdownMenu>

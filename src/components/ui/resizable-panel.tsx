@@ -19,8 +19,8 @@ interface ResizablePanelProps {
 export function ResizablePanel({
   children,
   side,
-  defaultWidth = 256,
-  minWidth = 200,
+  defaultWidth = 400,
+  minWidth = 100,
   maxWidth = 500,
   collapsedWidth = 40,
   title,

@@ -124,20 +124,71 @@ export const frameworkOptions = [
 ];
 
 export const dataFormatOptions = [
-  { value: 'csv', label: 'CSV' },
-  { value: 'parquet', label: 'Parquet' },
-  { value: 'json', label: 'JSON' },
-  { value: 'arrow', label: 'Apache Arrow' },
-  { value: 'custom', label: 'Custom' },
+  // Tabular Formats
+  { value: 'csv', label: 'CSV', category: 'Tabular' },
+  { value: 'tsv', label: 'TSV', category: 'Tabular' },
+  { value: 'xlsx', label: 'Excel (.xlsx)', category: 'Tabular' },
+  { value: 'xls', label: 'Excel (.xls)', category: 'Tabular' },
+  
+  // Columnar Formats
+  { value: 'parquet', label: 'Parquet', category: 'Columnar' },
+  { value: 'arrow', label: 'Apache Arrow', category: 'Columnar' },
+  { value: 'avro', label: 'Avro', category: 'Columnar' },
+  { value: 'orc', label: 'ORC', category: 'Columnar' },
+  { value: 'feather', label: 'Apache Feather', category: 'Columnar' },
+  
+  // Scientific Formats
+  { value: 'hdf5', label: 'HDF5', category: 'Scientific' },
+  { value: 'netcdf', label: 'NetCDF', category: 'Scientific' },
+  { value: 'sqlite', label: 'SQLite', category: 'Scientific' },
+  
+  // Serialization Formats
+  { value: 'json', label: 'JSON', category: 'Serialization' },
+  { value: 'jsonl', label: 'JSON Lines', category: 'Serialization' },
+  { value: 'pickle', label: 'Python Pickle', category: 'Serialization' },
+  { value: 'xml', label: 'XML', category: 'Serialization' },
+  { value: 'yaml', label: 'YAML', category: 'Serialization' },
+  
+  // Image Formats
+  { value: 'jpg', label: 'JPEG', category: 'Images' },
+  { value: 'png', label: 'PNG', category: 'Images' },
+  { value: 'gif', label: 'GIF', category: 'Images' },
+  { value: 'bmp', label: 'BMP', category: 'Images' },
+  { value: 'tiff', label: 'TIFF', category: 'Images' },
+  { value: 'webp', label: 'WebP', category: 'Images' },
+  { value: 'svg', label: 'SVG', category: 'Images' },
+  
+  // Video Formats
+  { value: 'mp4', label: 'MP4', category: 'Videos' },
+  { value: 'avi', label: 'AVI', category: 'Videos' },
+  { value: 'mkv', label: 'Matroska (MKV)', category: 'Videos' },
+  { value: 'mov', label: 'QuickTime (MOV)', category: 'Videos' },
+  { value: 'flv', label: 'Flash Video (FLV)', category: 'Videos' },
+  { value: 'wmv', label: 'Windows Media Video', category: 'Videos' },
+  { value: 'webm', label: 'WebM', category: 'Videos' },
+  
+  // Audio Formats
+  { value: 'mp3', label: 'MP3', category: 'Audio' },
+  { value: 'wav', label: 'WAV', category: 'Audio' },
+  { value: 'flac', label: 'FLAC', category: 'Audio' },
+  { value: 'aac', label: 'AAC', category: 'Audio' },
+  { value: 'ogg', label: 'OGG Vorbis', category: 'Audio' },
+  { value: 'm4a', label: 'M4A', category: 'Audio' },
+  { value: 'wma', label: 'Windows Media Audio', category: 'Audio' },
+  
+  { value: 'custom', label: 'Custom', category: 'Other' },
 ];
 
+export type DataFormatOption = typeof dataFormatOptions[number];
+
 export const dataSourceOptions = [
-  { value: 'local', label: 'Local File' },
-  { value: 'cloud', label: 'Cloud Storage' },
-  { value: 's3', label: 'Amazon S3' },
-  { value: 'gcs', label: 'Google Cloud Storage' },
-  { value: 'azure-blob', label: 'Azure Blob Storage' },
-  { value: 'url', label: 'URL' },
+  { value: 'local', label: 'Local File System', category: 'Local' },
+  { value: 's3', label: 'Amazon S3', category: 'Cloud' },
+  { value: 'gcs', label: 'Google Cloud Storage', category: 'Cloud' },
+  { value: 'azure-blob', label: 'Azure Blob Storage', category: 'Cloud' },
+  { value: 'minio', label: 'MinIO', category: 'Cloud' },
+  { value: 'clearml', label: 'ClearML Dataset', category: 'ML Platform' },
+  { value: 'url', label: 'URL', category: 'Other' },
 ];
 
 export const versioningToolOptions = [

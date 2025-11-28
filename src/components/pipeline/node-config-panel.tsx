@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback } from 'react';
-import { X, Settings, Database, GitBranch, Wand2, Cpu, BarChart3, FileText } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { X, Settings, Database, GitBranch, Wand2, Cpu, BarChart3, FileText, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { usePipelineStore } from '@/stores/pipeline-store';
+import { dataFormatOptions } from '@/config/node-definitions';
+import type { DataFormatOption } from '@/config/node-definitions';
 import type {
   PipelineNodeData,
   DatasetNodeData,
@@ -43,6 +45,142 @@ const nodeIcons: Record<string, React.ReactNode> = {
   experiment: <BarChart3 className="h-5 w-5" />,
   report: <FileText className="h-5 w-5" />,
 };
+
+// Collapsible Format Selector Component
+interface CollapsibleFormatSelectorProps {
+  value: string | string[];
+  onChange: (value: string | string[]) => void;
+}
+
+function CollapsibleFormatSelector({ value, onChange }: CollapsibleFormatSelectorProps) {
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
+    'Tabular': true,
+    'Columnar': false,
+    'Scientific': false,
+    'Serialization': false,
+    'Images': false,
+    'Videos': false,
+    'Audio': false,
+    'Other': false,
+  });
+
+  // Normalize value to array for easier handling
+  const selectedFormats = Array.isArray(value) ? value : (value ? [value] : []);
+
+  // Group formats by category
+  const formatsByCategory = dataFormatOptions.reduce((acc, option) => {
+    const category = (option as any).category || 'Other';
+    if (!acc[category]) {
+      acc[category] = [];
+    }
+    acc[category].push(option);
+    return acc;
+  }, {} as Record<string, DataFormatOption[]>);
+
+  const toggleCategory = (category: string) => {
+    setExpandedCategories((prev) => ({
+      ...prev,
+      [category]: !prev[category],
+    }));
+  };
+
+  const handleFormatChange = (formatValue: string) => {
+    if (selectedFormats.includes(formatValue)) {
+      // Remove format if already selected
+      const updated = selectedFormats.filter((f) => f !== formatValue);
+      onChange(updated.length === 0 ? '' : updated.length === 1 ? updated[0] : updated);
+    } else {
+      // Add format
+      onChange([...selectedFormats, formatValue]);
+    }
+  };
+
+  const getDisplayText = () => {
+    if (selectedFormats.length === 0) return 'Select formats';
+    if (selectedFormats.length === 1) {
+      const option = dataFormatOptions.find((opt) => opt.value === selectedFormats[0]);
+      return option?.label || selectedFormats[0];
+    }
+    return `${selectedFormats.length} format${selectedFormats.length > 1 ? 's' : ''} selected`;
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="border rounded-lg overflow-hidden">
+        <div className="bg-muted/50 px-3 py-2.5">
+          <div className="font-medium text-sm">{getDisplayText()}</div>
+          {selectedFormats.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {selectedFormats.map((format) => {
+                const option = dataFormatOptions.find((opt) => opt.value === format);
+                return (
+                  <Badge key={format} variant="default" className="text-xs">
+                    {option?.label || format}
+                    <button
+                      onClick={() => handleFormatChange(format)}
+                      className="ml-1 hover:opacity-75"
+                    >
+                      ✕
+                    </button>
+                  </Badge>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        
+        <ScrollArea className="h-64 border-t">
+          <div className="p-2 space-y-1">
+            {Object.entries(formatsByCategory).map(([category, formats]) => (
+              <div key={category}>
+                <button
+                  onClick={() => toggleCategory(category)}
+                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-accent rounded-md text-sm font-medium transition-colors"
+                >
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform ${
+                      expandedCategories[category] ? 'rotate-0' : '-rotate-90'
+                    }`}
+                  />
+                  <span className="text-muted-foreground text-xs uppercase tracking-wider flex-1 text-left">
+                    {category}
+                  </span>
+                  <Badge variant="secondary" className="text-xs">
+                    {formats.length}
+                  </Badge>
+                </button>
+                
+                {expandedCategories[category] && (
+                  <div className="pl-6 space-y-0.5">
+                    {formats.map((format) => (
+                      <button
+                        key={format.value}
+                        onClick={() => handleFormatChange(format.value)}
+                        className={`w-full text-left px-3 py-1.5 rounded text-sm transition-colors flex items-center gap-2 ${
+                          selectedFormats.includes(format.value)
+                            ? 'bg-primary text-primary-foreground font-medium'
+                            : 'hover:bg-accent text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedFormats.includes(format.value)}
+                          onChange={() => handleFormatChange(format.value)}
+                          className="h-4 w-4 cursor-pointer"
+                        />
+                        {format.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+      </div>
+    </div>
+  );
+}
 
 export function NodeConfigPanel() {
   const { nodes, selectedNodeId, selectNode, updateNodeData } = usePipelineStore();
@@ -247,19 +385,11 @@ function DatasetConfigPanel({ config, onUpdate }: DatasetConfigPanelProps) {
       </div>
       
       <div className="space-y-2">
-        <Label>File Format</Label>
-        <Select value={config.format} onValueChange={(value) => onUpdate({ format: value as DatasetConfig['format'] })}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select format" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="csv">CSV</SelectItem>
-            <SelectItem value="parquet">Parquet</SelectItem>
-            <SelectItem value="json">JSON</SelectItem>
-            <SelectItem value="arrow">Arrow</SelectItem>
-            <SelectItem value="custom">Custom</SelectItem>
-          </SelectContent>
-        </Select>
+        <Label>File Format(s)</Label>
+        <CollapsibleFormatSelector 
+          value={config.format} 
+          onChange={(value) => onUpdate({ format: value })}
+        />
       </div>
       
       {(config.source === 's3' || config.source === 'gcs' || config.source === 'azure-blob') && (

@@ -29,13 +29,37 @@ export interface DatasetNodeData extends BaseNodeData {
 
 export interface DatasetConfig {
   [key: string]: unknown;
-  source: 'local' | 'cloud' | 's3' | 'gcs' | 'azure-blob' | 'url';
+  source: 'local' | 's3' | 'gcs' | 'azure-blob' | 'minio' | 'clearml' | 'url';
   path: string;
-  format: 'csv' | 'parquet' | 'json' | 'arrow' | 'custom';
+  format: string | string[];
+  // S3/MinIO specific
+  bucket?: string;
+  region?: string;
+  endpoint?: string; // For MinIO custom endpoint
+  // Azure specific
+  container?: string;
+  // ClearML specific
+  datasetId?: string;
+  datasetProject?: string;
+  // Credentials for all cloud providers
   credentials?: {
+    // AWS S3 / MinIO
     accessKey?: string;
     secretKey?: string;
+    // Azure Blob Storage
     connectionString?: string;
+    accountName?: string;
+    accountKey?: string;
+    sasToken?: string;
+    // Google Cloud Storage
+    projectId?: string;
+    serviceAccountKey?: string; // JSON key file content
+    // ClearML
+    clearmlApiHost?: string;
+    clearmlWebHost?: string;
+    clearmlFilesHost?: string;
+    clearmlAccessKey?: string;
+    clearmlSecretKey?: string;
   };
   preview?: {
     columns: string[];

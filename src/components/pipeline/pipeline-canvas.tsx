@@ -13,7 +13,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
-import { nodeTypes } from '@/components/nodes/base-node';
+import { nodeTypes } from '@/components/nodes';
 import { NodePalette } from '@/components/pipeline/node-palette';
 import { NodeConfigPanel } from '@/components/pipeline/node-config-panel';
 import { PipelineToolbar } from '@/components/pipeline/pipeline-toolbar';
@@ -81,8 +81,8 @@ function PipelineCanvasInner() {
       {/* Left Sidebar - Node Palette */}
       <ResizablePanel
         side="left"
-        defaultWidth={280}
-        minWidth={200}
+        defaultWidth={380}
+        minWidth={100}
         maxWidth={450}
         title="Node Palette"
       >
@@ -113,7 +113,7 @@ function PipelineCanvasInner() {
           proOptions={{ hideAttribution: true }}
         >
           <Background gap={15} size={1} />
-          <Controls />
+          <Controls className="!bg-neutral-100 !border-neutral-200 !shadow-md !text-neutral-700 [&>button]:!bg-neutral-100 [&>button]:!border-neutral-200 [&>button]:!fill-neutral-700 [&>button:hover]:!bg-neutral-200" />
           <MiniMap
             nodeStrokeWidth={3}
             zoomable

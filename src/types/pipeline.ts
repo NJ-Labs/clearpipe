@@ -116,6 +116,9 @@ export interface PreprocessingStep {
   inlineScript?: string; // Python code when scriptSource is 'inline'
   dataSourceVariable?: string; // Variable name to replace with the input data path (default: 'DATA_SOURCE')
   outputVariables?: string[]; // Variable names that contain output paths (default: ['OUTPUT_PATH'])
+  // Virtual environment configuration (for local scripts)
+  venvPath?: string; // Path to the virtual environment folder
+  venvMode?: 'auto' | 'custom' | 'none'; // 'auto' = auto-detect .venv, 'custom' = user-specified path, 'none' = use system python
 }
 
 // Training node configuration

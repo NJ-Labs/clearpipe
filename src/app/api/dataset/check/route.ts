@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
 interface CheckDatasetRequest {
   source: 'local' | 's3' | 'gcs' | 'azure-blob' | 'minio' | 'clearml' | 'url';
@@ -170,8 +171,14 @@ function handleLocalSource(
     });
   }
 
+  // Expand tilde to user home directory (cross-platform: Linux, macOS, Windows)
+  let resolvedPath = datasetPath;
+  if (resolvedPath.startsWith('~')) {
+    resolvedPath = resolvedPath.replace(/^~/, os.homedir());
+  }
+
   // Check if path exists
-  if (!fs.existsSync(datasetPath)) {
+  if (!fs.existsSync(resolvedPath)) {
     return NextResponse.json({
       success: false,
       fileCount: 0,
@@ -180,7 +187,7 @@ function handleLocalSource(
   }
 
   // Check if it's a directory
-  const stat = fs.statSync(datasetPath);
+  const stat = fs.statSync(resolvedPath);
   if (!stat.isDirectory()) {
     return NextResponse.json({
       success: false,
@@ -190,7 +197,7 @@ function handleLocalSource(
   }
 
   // Get all matching files
-  const files = getAllFiles(datasetPath, filePattern);
+  const files = getAllFiles(resolvedPath, filePattern);
 
   return NextResponse.json({
     success: true,
@@ -198,7 +205,7 @@ function handleLocalSource(
     files: files.slice(0, 100),
     metadata: {
       source: 'local',
-      path: datasetPath,
+      path: resolvedPath,
     },
   });
 }

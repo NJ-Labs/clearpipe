@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState, useEffect } from 'react';
-import { X, Settings, Database, GitBranch, Wand2, Cpu, BarChart3, FileText, ChevronDown, Plus, Pencil, Trash2, ArrowLeft } from 'lucide-react';
+import { X, Settings, Database, GitBranch, Wand2, Cpu, BarChart3, FileText, ChevronDown, Plus, Pencil, Trash2, ArrowLeft, RefreshCw, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -759,8 +759,70 @@ interface PreprocessingConfigPanelProps {
 function PreprocessingConfigPanel({ config, onUpdate }: PreprocessingConfigPanelProps) {
   const [editingStepId, setEditingStepId] = useState<string | null>(null);
   const [hoveredStepId, setHoveredStepId] = useState<string | null>(null);
+  const [venvStatus, setVenvStatus] = useState<{
+    checking: boolean;
+    detected: boolean;
+    venvPath?: string;
+    pythonPath?: string;
+    error?: string;
+  }>({ checking: false, detected: false });
   
   const editingStep = editingStepId ? config.steps.find(s => s.id === editingStepId) : null;
+  
+  // Check venv when script path changes or when editing a step with local source
+  const checkVenv = useCallback(async (scriptPath: string, customVenvPath?: string) => {
+    if (!scriptPath && !customVenvPath) {
+      setVenvStatus({ checking: false, detected: false, error: 'No script path provided' });
+      return;
+    }
+    
+    setVenvStatus({ checking: true, detected: false });
+    
+    try {
+      const response = await fetch('/api/preprocessing/check-venv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scriptPath, customVenvPath }),
+      });
+      
+      const data = await response.json();
+      
+      setVenvStatus({
+        checking: false,
+        detected: data.detected,
+        venvPath: data.venvPath,
+        pythonPath: data.pythonPath,
+        error: data.error,
+      });
+      
+      // If auto-detected, update the step with the detected venv path
+      if (data.detected && editingStepId && !customVenvPath) {
+        handleUpdateStep(editingStepId, { 
+          venvPath: data.venvPath,
+          venvMode: 'auto'
+        });
+      }
+    } catch (error) {
+      setVenvStatus({
+        checking: false,
+        detected: false,
+        error: (error as Error).message,
+      });
+    }
+  }, [editingStepId]);
+  
+  // Auto-check venv when editing step changes or script path is set
+  useEffect(() => {
+    if (editingStep && (editingStep.scriptSource === 'local' || !editingStep.scriptSource)) {
+      if (editingStep.venvMode === 'custom' && editingStep.venvPath) {
+        checkVenv(editingStep.scriptPath || '', editingStep.venvPath);
+      } else if (editingStep.scriptPath) {
+        checkVenv(editingStep.scriptPath);
+      } else {
+        setVenvStatus({ checking: false, detected: false });
+      }
+    }
+  }, [editingStep?.id, editingStep?.scriptPath, editingStep?.venvPath, editingStep?.venvMode, editingStep?.scriptSource, checkVenv]);
   
   const handleDeleteStep = (stepId: string) => {
     onUpdate({ steps: config.steps.filter(s => s.id !== stepId) });
@@ -898,18 +960,123 @@ function PreprocessingConfigPanel({ config, onUpdate }: PreprocessingConfigPanel
           </div>
           
           {editingStep.scriptSource === 'local' || !editingStep.scriptSource ? (
-            <div className="space-y-2">
-              <Label htmlFor="scriptPath">Script Path</Label>
-              <Input
-                id="scriptPath"
-                value={editingStep.scriptPath || ''}
-                onChange={(e) => handleUpdateStep(editingStep.id, { scriptPath: e.target.value })}
-                placeholder="e.g., /path/to/preprocess.py"
-              />
-              <p className="text-xs text-muted-foreground">
-                Path to the Python script (.py file) that will be executed
-              </p>
-            </div>
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="scriptPath">Script Path</Label>
+                <Input
+                  id="scriptPath"
+                  value={editingStep.scriptPath || ''}
+                  onChange={(e) => handleUpdateStep(editingStep.id, { scriptPath: e.target.value })}
+                  placeholder="e.g., /path/to/preprocess.py"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Path to the Python script (.py file) that will be executed
+                </p>
+              </div>
+              
+              {/* Environment (Virtual Environment) Configuration */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Environment</Label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs gap-1"
+                    onClick={() => {
+                      if (editingStep.venvMode === 'custom' && editingStep.venvPath) {
+                        checkVenv(editingStep.scriptPath || '', editingStep.venvPath);
+                      } else {
+                        checkVenv(editingStep.scriptPath || '');
+                      }
+                    }}
+                    disabled={venvStatus.checking}
+                  >
+                    <RefreshCw className={`h-3 w-3 ${venvStatus.checking ? 'animate-spin' : ''}`} />
+                    Detect
+                  </Button>
+                </div>
+                
+                <Select 
+                  value={editingStep.venvMode || 'auto'} 
+                  onValueChange={(value) => {
+                    handleUpdateStep(editingStep.id, { 
+                      venvMode: value as 'auto' | 'custom' | 'none',
+                      venvPath: value === 'none' ? undefined : editingStep.venvPath
+                    });
+                    if (value === 'auto' && editingStep.scriptPath) {
+                      checkVenv(editingStep.scriptPath);
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select environment mode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Auto-detect (.venv)</SelectItem>
+                    <SelectItem value="custom">Custom path</SelectItem>
+                    <SelectItem value="none">System Python</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                {editingStep.venvMode === 'custom' && (
+                  <Input
+                    value={editingStep.venvPath || ''}
+                    onChange={(e) => handleUpdateStep(editingStep.id, { venvPath: e.target.value })}
+                    onBlur={(e) => {
+                      if (e.target.value) {
+                        checkVenv(editingStep.scriptPath || '', e.target.value);
+                      }
+                    }}
+                    placeholder="e.g., /path/to/.venv or ~/myproject/venv"
+                  />
+                )}
+                
+                {/* Venv Status Badge */}
+                {(editingStep.venvMode !== 'none') && (
+                  <div className="flex items-center gap-2 mt-2">
+                    {venvStatus.checking ? (
+                      <Badge variant="secondary" className="text-xs gap-1">
+                        <RefreshCw className="h-3 w-3 animate-spin" />
+                        Checking...
+                      </Badge>
+                    ) : venvStatus.detected ? (
+                      <Badge variant="default" className="text-xs gap-1 bg-green-600 hover:bg-green-700">
+                        <CheckCircle2 className="h-3 w-3" />
+                        venv detected
+                      </Badge>
+                    ) : editingStep.scriptPath ? (
+                      <Badge variant="destructive" className="text-xs gap-1">
+                        <XCircle className="h-3 w-3" />
+                        venv not detected
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="text-xs gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        Enter script path first
+                      </Badge>
+                    )}
+                  </div>
+                )}
+                
+                {venvStatus.detected && venvStatus.venvPath && (
+                  <p className="text-xs text-muted-foreground truncate" title={venvStatus.venvPath}>
+                    Using: {venvStatus.venvPath}
+                  </p>
+                )}
+                
+                {!venvStatus.detected && venvStatus.error && editingStep.scriptPath && editingStep.venvMode !== 'none' && (
+                  <p className="text-xs text-destructive">
+                    {venvStatus.error}
+                  </p>
+                )}
+                
+                {editingStep.venvMode === 'none' && (
+                  <p className="text-xs text-muted-foreground">
+                    Will use system Python (python3). Make sure required packages are installed globally.
+                  </p>
+                )}
+              </div>
+            </>
           ) : (
             <div className="space-y-2">
               <Label htmlFor="inlineScript">Inline Script</Label>

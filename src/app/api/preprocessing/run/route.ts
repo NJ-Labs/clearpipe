@@ -2,10 +2,127 @@ import { NextRequest, NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs/promises';
+import * as fsSync from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
 const execAsync = promisify(exec);
+
+/**
+ * Expand tilde to user home directory (cross-platform)
+ */
+function expandTilde(filePath: string): string {
+  if (filePath.startsWith('~')) {
+    return filePath.replace(/^~/, os.homedir());
+  }
+  return filePath;
+}
+
+/**
+ * Get the Python executable path for a given venv directory
+ * Handles cross-platform differences (Linux/macOS vs Windows)
+ */
+function getVenvPythonPath(venvPath: string): string {
+  const isWindows = os.platform() === 'win32';
+  if (isWindows) {
+    return path.join(venvPath, 'Scripts', 'python.exe');
+  }
+  // Try python3 first, fall back to python
+  const python3Path = path.join(venvPath, 'bin', 'python3');
+  if (fsSync.existsSync(python3Path)) {
+    return python3Path;
+  }
+  return path.join(venvPath, 'bin', 'python');
+}
+
+/**
+ * Check if a directory is a valid Python virtual environment
+ */
+function isValidVenv(venvPath: string): boolean {
+  const expandedPath = expandTilde(venvPath);
+  if (!fsSync.existsSync(expandedPath)) {
+    return false;
+  }
+  
+  const pythonPath = getVenvPythonPath(expandedPath);
+  if (!fsSync.existsSync(pythonPath)) {
+    // Try alternative python path
+    const altPythonPath = path.join(expandedPath, 'bin', 'python');
+    if (!fsSync.existsSync(altPythonPath)) {
+      return false;
+    }
+  }
+  
+  // Check for pyvenv.cfg or activate script as additional validation
+  const pyvenvCfg = path.join(expandedPath, 'pyvenv.cfg');
+  const activateScript = os.platform() === 'win32'
+    ? path.join(expandedPath, 'Scripts', 'activate.bat')
+    : path.join(expandedPath, 'bin', 'activate');
+  
+  return fsSync.existsSync(pyvenvCfg) || fsSync.existsSync(activateScript);
+}
+
+/**
+ * Auto-detect venv in script directory
+ */
+function autoDetectVenv(scriptPath: string): string | null {
+  const expandedScriptPath = expandTilde(scriptPath);
+  const scriptDir = path.dirname(expandedScriptPath);
+  
+  // Common venv folder names to check
+  const venvNames = ['.venv', 'venv', '.env', 'env'];
+  
+  for (const venvName of venvNames) {
+    const potentialVenvPath = path.join(scriptDir, venvName);
+    if (isValidVenv(potentialVenvPath)) {
+      return potentialVenvPath;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Determine the Python command to use based on venv configuration
+ */
+function getPythonCommand(step: PreprocessingStep): { pythonPath: string; venvUsed: boolean; venvPath?: string } {
+  // If venv mode is 'none', use system Python
+  if (step.venvMode === 'none') {
+    return { pythonPath: 'python3', venvUsed: false };
+  }
+  
+  // If venv mode is 'custom' and a path is provided, use that
+  if (step.venvMode === 'custom' && step.venvPath) {
+    const expandedPath = expandTilde(step.venvPath);
+    if (isValidVenv(expandedPath)) {
+      const pythonPath = getVenvPythonPath(expandedPath);
+      return { pythonPath, venvUsed: true, venvPath: expandedPath };
+    }
+    // Custom venv path invalid, fall back to system Python
+    return { pythonPath: 'python3', venvUsed: false };
+  }
+  
+  // Auto-detect mode (default)
+  if (step.scriptPath) {
+    const detectedVenvPath = autoDetectVenv(step.scriptPath);
+    if (detectedVenvPath) {
+      const pythonPath = getVenvPythonPath(detectedVenvPath);
+      return { pythonPath, venvUsed: true, venvPath: detectedVenvPath };
+    }
+  }
+  
+  // If already have a venvPath from previous detection, use it
+  if (step.venvPath) {
+    const expandedPath = expandTilde(step.venvPath);
+    if (isValidVenv(expandedPath)) {
+      const pythonPath = getVenvPythonPath(expandedPath);
+      return { pythonPath, venvUsed: true, venvPath: expandedPath };
+    }
+  }
+  
+  // Fall back to system Python
+  return { pythonPath: 'python3', venvUsed: false };
+}
 
 interface PreprocessingStep {
   id: string;
@@ -18,6 +135,9 @@ interface PreprocessingStep {
   inlineScript?: string;
   dataSourceVariable?: string;
   outputVariables?: string[]; // Support multiple output variables
+  // Virtual environment configuration
+  venvPath?: string;
+  venvMode?: 'auto' | 'custom' | 'none';
 }
 
 interface RunPreprocessingRequest {
@@ -161,8 +281,14 @@ ${outputPrintLogic}
     await fs.writeFile(wrapperScriptPath, wrapperScript, 'utf-8');
 
     try {
-      // Execute the Python script
-      const { stdout, stderr } = await execAsync(`python3 "${wrapperScriptPath}"`, {
+      // Determine the Python command based on venv configuration
+      const { pythonPath, venvUsed, venvPath } = getPythonCommand(step);
+      
+      // Log which Python is being used (for debugging)
+      console.log(`[Preprocessing] Using Python: ${pythonPath} (venv: ${venvUsed ? venvPath : 'none'})`);
+      
+      // Execute the Python script with the appropriate Python interpreter
+      const { stdout, stderr } = await execAsync(`"${pythonPath}" "${wrapperScriptPath}"`, {
         timeout: 300000, // 5 minute timeout
         maxBuffer: 10 * 1024 * 1024, // 10MB buffer
         cwd: path.dirname(step.scriptPath || wrapperScriptPath),

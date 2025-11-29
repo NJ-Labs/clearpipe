@@ -14,6 +14,8 @@ interface ResizablePanelProps {
   collapsedWidth?: number;
   title?: string;
   className?: string;
+  isOpen?: boolean;
+  onCollapse?: () => void;
 }
 
 export function ResizablePanel({
@@ -25,11 +27,23 @@ export function ResizablePanel({
   collapsedWidth = 40,
   title,
   className,
+  isOpen,
+  onCollapse,
 }: ResizablePanelProps) {
   const [isCollapsed, setIsCollapsed] = React.useState(false);
   const [width, setWidth] = React.useState(defaultWidth);
   const [isResizing, setIsResizing] = React.useState(false);
   const panelRef = React.useRef<HTMLDivElement>(null);
+  const prevIsOpenRef = React.useRef<boolean | undefined>(undefined);
+
+  // Auto-expand when isOpen becomes true (but allow manual collapse)
+  React.useEffect(() => {
+    // Only auto-expand when isOpen transitions from false/undefined to true
+    if (isOpen === true && prevIsOpenRef.current !== true && isCollapsed) {
+      setIsCollapsed(false);
+    }
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen]);
 
   const handleMouseDown = React.useCallback(
     (e: React.MouseEvent) => {
@@ -60,8 +74,12 @@ export function ResizablePanel({
   );
 
   const toggleCollapse = React.useCallback(() => {
+    // If collapsing and onCollapse callback provided, call it first
+    if (!isCollapsed && onCollapse) {
+      onCollapse();
+    }
     setIsCollapsed((prev) => !prev);
-  }, []);
+  }, [isCollapsed, onCollapse]);
 
   const CollapseIcon = side === 'left' 
     ? (isCollapsed ? ChevronRight : ChevronLeft)

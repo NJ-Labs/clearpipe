@@ -35,6 +35,7 @@ function PipelineCanvasInner() {
     onConnect,
     addNode,
     selectNode,
+    isConfigPanelOpen,
   } = usePipelineStore();
 
   // Validate connection: source must have output (right), target must have input (left)
@@ -95,6 +96,10 @@ function PipelineCanvasInner() {
   );
 
   const onPaneClick = useCallback(() => {
+    selectNode(null);
+  }, [selectNode]);
+
+  const handleConfigPanelCollapse = useCallback(() => {
     selectNode(null);
   }, [selectNode]);
 
@@ -181,6 +186,8 @@ function PipelineCanvasInner() {
         minWidth={280}
         maxWidth={550}
         title="Configuration"
+        isOpen={isConfigPanelOpen}
+        onCollapse={handleConfigPanelCollapse}
       >
         <NodeConfigPanel />
       </ResizablePanel>

@@ -95,7 +95,7 @@ export function BaseNodeComponent({ id, data, selected, children }: BaseNodeComp
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6"
+            className="h-6 w-6 transition-all duration-200 hover:scale-110 hover:bg-accent"
             onClick={handleConfigure}
           >
             <Settings className="w-3 h-3" />
@@ -103,7 +103,7 @@ export function BaseNodeComponent({ id, data, selected, children }: BaseNodeComp
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6"
+            className="h-6 w-6 transition-all duration-200 hover:scale-110 hover:bg-accent"
             onClick={handleDuplicate}
           >
             <Copy className="w-3 h-3" />
@@ -111,7 +111,7 @@ export function BaseNodeComponent({ id, data, selected, children }: BaseNodeComp
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 text-destructive hover:text-destructive"
+            className="h-6 w-6 text-destructive hover:text-destructive transition-all duration-200 hover:scale-110 hover:bg-destructive/10"
             onClick={handleDelete}
           >
             <Trash2 className="w-3 h-3" />

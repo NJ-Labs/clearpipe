@@ -135,7 +135,7 @@ export function NodePalette({ onDragStart }: NodePaletteProps) {
                       <motion.div
                         key={node.type}
                         draggable
-                        onDragStart={(e) => onDragStart(e, node.type)}
+                        onDragStart={(e) => onDragStart(e as unknown as React.DragEvent, node.type)}
                         title={`${node.label}: ${node.description}`}
                         className={cn(
                           'flex items-center justify-center p-3 rounded-lg border cursor-grab active:cursor-grabbing transition-colors',
@@ -157,7 +157,7 @@ export function NodePalette({ onDragStart }: NodePaletteProps) {
                       <motion.div
                         key={node.type}
                         draggable
-                        onDragStart={(e) => onDragStart(e, node.type)}
+                        onDragStart={(e) => onDragStart(e as unknown as React.DragEvent, node.type)}
                         title={node.description}
                         className={cn(
                           'flex items-center gap-2 p-2.5 rounded-lg border cursor-grab active:cursor-grabbing transition-colors',
@@ -182,7 +182,7 @@ export function NodePalette({ onDragStart }: NodePaletteProps) {
                     <motion.div
                       key={node.type}
                       draggable
-                      onDragStart={(e) => onDragStart(e, node.type)}
+                      onDragStart={(e) => onDragStart(e as unknown as React.DragEvent, node.type)}
                       className={cn(
                         'flex items-center gap-3 p-3 rounded-lg border cursor-grab active:cursor-grabbing transition-colors',
                         categoryColorMap[category]

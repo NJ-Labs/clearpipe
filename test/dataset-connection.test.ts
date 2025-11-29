@@ -118,8 +118,8 @@ function getAllFiles(dirPath: string, filePattern: RegExp, arrayOfFiles: string[
   try {
     const files = fs.readdirSync(dirPath);
 
-    files.forEach((file) => {
-      const filePath = path.join(dirPath, file);
+    files.forEach((file: string) => {
+      const filePath: string = path.join(dirPath, file);
       
       try {
         const stat = fs.statSync(filePath);

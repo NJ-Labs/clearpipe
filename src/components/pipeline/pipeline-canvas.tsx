@@ -12,6 +12,7 @@ import {
   Panel,
   Connection,
   EdgeChange,
+  IsValidConnection,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -28,7 +29,7 @@ function PipelineCanvasInner() {
   const { screenToFlowPosition, getZoom } = useReactFlow();
   const [zoom, setZoom] = useState<number>(0.8);
   const [showZoomIndicator, setShowZoomIndicator] = useState(false);
-  const zoomTimeoutRef = useRef<NodeJS.Timeout>();
+  const zoomTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Update zoom level and show indicator
   const handleZoom = useCallback(() => {
@@ -96,7 +97,7 @@ function PipelineCanvasInner() {
   } = usePipelineStore();
 
   // Validate connection: source must have output (right), target must have input (left)
-  const isValidConnection = useCallback((connection: Connection) => {
+  const isValidConnection = useCallback((connection: Connection | any) => {
     // Prevent connections from source to source or target to target
     if (connection.sourceHandle === connection.targetHandle) {
       return false;
@@ -171,13 +172,15 @@ function PipelineCanvasInner() {
     const { nodes: currentNodes, edges: currentEdges, deleteNode: _, ...storeActions } = usePipelineStore.getState();
     const newEdges = currentEdges
       .filter(edge => edge.id !== oldEdge.id)
-      .concat({
-        ...newConnection,
+      .concat([{
         id: oldEdge.id, // Keep the same edge ID
+        source: newConnection.source || '',
+        target: newConnection.target || '',
+        sourceHandle: newConnection.sourceHandle,
+        targetHandle: newConnection.targetHandle,
         type: 'smoothstep',
         animated: true,
-        animationDuration: 1000,
-      });
+      } as any]);
 
     // Update edges in store
     usePipelineStore.setState({ edges: newEdges, isDirty: true });
@@ -217,7 +220,6 @@ function PipelineCanvasInner() {
           defaultEdgeOptions={{
             type: 'smoothstep',
             animated: true,
-            animationDuration: 1000,
           }}
           defaultViewport={{ x: 0, y: 0, zoom: 1.0 }}
           proOptions={{ hideAttribution: true }}

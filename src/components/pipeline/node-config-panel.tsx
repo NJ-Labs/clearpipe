@@ -1054,28 +1054,6 @@ function ExecuteConfigPanel({ config, onUpdate }: ExecuteConfigPanelProps) {
           <Separator />
           
           <div className="space-y-2">
-            <Label>Step Type</Label>
-            <Select 
-              value={editingStep.type} 
-              onValueChange={(value) => handleUpdateStep(editingStep.id, { type: value as ExecuteStep['type'] })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="normalize">Normalize</SelectItem>
-                <SelectItem value="standardize">Standardize</SelectItem>
-                <SelectItem value="encode">Encode</SelectItem>
-                <SelectItem value="impute">Impute</SelectItem>
-                <SelectItem value="feature_engineering">Feature Engineering</SelectItem>
-                <SelectItem value="custom">Custom</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <Separator />
-          
-          <div className="space-y-2">
             <Label className="text-sm font-semibold">Script Configuration</Label>
           </div>
           
@@ -1395,9 +1373,6 @@ function ExecuteConfigPanel({ config, onUpdate }: ExecuteConfigPanelProps) {
                     )}
                     <Badge variant={step.executionMode === 'cloud' ? 'secondary' : 'outline'}>
                       {step.executionMode === 'cloud' ? '☁️ Cloud' : '💻 Local'}
-                    </Badge>
-                    <Badge variant={step.enabled ? 'default' : 'secondary'}>
-                      {step.type}
                     </Badge>
                   </div>
                 </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useRef, useState, useEffect } from 'react';
 import {
   ReactFlow,
   Background,
@@ -25,7 +25,64 @@ import { PipelineNodeData } from '@/types/pipeline';
 
 function PipelineCanvasInner() {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, getZoom } = useReactFlow();
+  const [zoom, setZoom] = useState<number>(0.8);
+  const [showZoomIndicator, setShowZoomIndicator] = useState(false);
+  const zoomTimeoutRef = useRef<NodeJS.Timeout>();
+
+  // Update zoom level and show indicator
+  const handleZoom = useCallback(() => {
+    const currentZoom = getZoom();
+    setZoom(currentZoom);
+    setShowZoomIndicator(true);
+
+    // Clear existing timeout
+    if (zoomTimeoutRef.current) {
+      clearTimeout(zoomTimeoutRef.current);
+    }
+
+    // Hide indicator after 2 seconds
+    zoomTimeoutRef.current = setTimeout(() => {
+      setShowZoomIndicator(false);
+    }, 2000);
+  }, [getZoom]);
+
+  // Listen to wheel events for zoom
+  useEffect(() => {
+    const canvas = reactFlowWrapper.current;
+    if (!canvas) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      // Only track zoom if ctrl/cmd is pressed (standard zoom modifier)
+      if (e.ctrlKey || e.metaKey) {
+        // Small delay to let ReactFlow process the zoom
+        setTimeout(handleZoom, 50);
+      }
+    };
+
+    canvas.addEventListener('wheel', handleWheel, { passive: true });
+    return () => {
+      canvas.removeEventListener('wheel', handleWheel);
+    };
+  }, [handleZoom]);
+
+  // Also listen for zoom button clicks via mutation observer
+  useEffect(() => {
+    const canvas = reactFlowWrapper.current;
+    if (!canvas) return;
+
+    const observer = new MutationObserver(() => {
+      handleZoom();
+    });
+
+    observer.observe(canvas, { 
+      attributes: true, 
+      subtree: true, 
+      attributeFilter: ['transform', 'style'] 
+    });
+
+    return () => observer.disconnect();
+  }, [handleZoom]);
 
   const {
     nodes,
@@ -155,7 +212,6 @@ function PipelineCanvasInner() {
           nodeTypes={nodeTypes}
           connectionMode={ConnectionMode.Strict}
           isValidConnection={isValidConnection}
-          fitView
           snapToGrid
           snapGrid={[15, 15]}
           defaultEdgeOptions={{
@@ -163,6 +219,7 @@ function PipelineCanvasInner() {
             animated: true,
             animationDuration: 1000,
           }}
+          defaultViewport={{ x: 0, y: 0, zoom: 1.0 }}
           proOptions={{ hideAttribution: true }}
         >
           <Background gap={15} size={1} />
@@ -177,13 +234,20 @@ function PipelineCanvasInner() {
             <PipelineToolbar />
           </Panel>
         </ReactFlow>
+
+        {/* Zoom Indicator - Positioned outside ReactFlow for better visibility */}
+        {showZoomIndicator && (
+          <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 bg-neutral-800 text-white px-3 py-1 rounded-md text-sm font-medium shadow-lg pointer-events-none z-10">
+            {(zoom * 100).toFixed(0)}%
+          </div>
+        )}
       </div>
 
       {/* Right Sidebar - Node Configuration */}
       <ResizablePanel
         side="right"
         defaultWidth={380}
-        minWidth={280}
+        minWidth={380}
         maxWidth={550}
         title="Configuration"
         isOpen={isConfigPanelOpen}

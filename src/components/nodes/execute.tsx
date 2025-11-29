@@ -66,7 +66,8 @@ export const ExecuteNode = memo(ExecuteNodeComponent);
 // Execute a single step
 async function executeStep(
   step: ExecuteStep, 
-  inputPath: string
+  inputPath: string,
+  sourceNodeOutputs?: Record<string, unknown>
 ): Promise<{
   success: boolean;
   outputPath?: string;
@@ -86,6 +87,7 @@ async function executeStep(
       body: JSON.stringify({
         step,
         inputPath,
+        sourceNodeOutputs,
       }),
     });
 
@@ -112,7 +114,8 @@ async function executeStep(
 // Execute steps
 export async function runExecute(
   config: ExecuteConfig, 
-  inputPath: string
+  inputPath: string,
+  sourceNodeOutputs?: Record<string, unknown>
 ): Promise<ExecuteExecutionResult> {
   try {
     const steps = config.steps || [];
@@ -140,10 +143,15 @@ export async function runExecute(
     const stepResults: ExecuteExecutionResult['stepResults'] = [];
     let currentPath = inputPath;
     let allOutputPaths: string[] = [];
+    // Build source outputs for subsequent steps (include original source outputs + step outputs)
+    let currentSourceOutputs: Record<string, unknown> = { 
+      ...sourceNodeOutputs,
+      outputPath: inputPath 
+    };
 
     // Execute steps sequentially
     for (const step of enabledSteps) {
-      const result = await executeStep(step, currentPath);
+      const result = await executeStep(step, currentPath, currentSourceOutputs);
       stepResults.push(result);
 
       if (!result.success) {
@@ -172,6 +180,13 @@ export async function runExecute(
       } else if (result.outputPath) {
         allOutputPaths = [result.outputPath];
       }
+      
+      // Update source outputs for next step (include this step's outputs)
+      currentSourceOutputs = {
+        ...currentSourceOutputs,
+        outputPath: currentPath,
+        outputPaths: allOutputPaths,
+      };
     }
 
     return {

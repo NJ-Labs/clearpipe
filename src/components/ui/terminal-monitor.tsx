@@ -125,7 +125,7 @@ export function TerminalMonitor({ logs, isExecuting = false, maxHeight = 'h-64' 
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-6 w-6 transition-all duration-200 hover:scale-110 hover:bg-accent"
             onClick={handleCopy}
             title="Copy all logs"
           >
@@ -134,7 +134,7 @@ export function TerminalMonitor({ logs, isExecuting = false, maxHeight = 'h-64' 
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-6 w-6 transition-all duration-200 hover:scale-110 hover:bg-accent"
             onClick={handleDownload}
             title="Download logs"
           >
@@ -143,7 +143,7 @@ export function TerminalMonitor({ logs, isExecuting = false, maxHeight = 'h-64' 
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-destructive hover:text-destructive"
+            className="h-6 w-6 text-destructive hover:text-destructive transition-all duration-200 hover:scale-110"
             onClick={handleClear}
             title="Clear filters"
             disabled={filter === 'all' && searchTerm === ''}
@@ -198,22 +198,24 @@ export function TerminalMonitor({ logs, isExecuting = false, maxHeight = 'h-64' 
           </div>
 
           {/* Logs Display */}
-          <ScrollArea className={`${maxHeight} bg-black/50 font-mono text-xs`}>
+          <ScrollArea className={`${maxHeight} font-mono text-xs`}>
             <div className="p-3 space-y-0">
               {filteredLogs.length === 0 ? (
                 <p className="text-muted-foreground text-center py-4">No logs match the filter</p>
               ) : (
                 filteredLogs.map((log, index) => (
-                  <div key={index} className="flex gap-2 hover:bg-white/10 px-2 py-1 rounded transition-colors group">
-                    <span className="text-muted-foreground flex-shrink-0 w-48">
+                  <div key={index} className="flex flex-col hover:bg-white/10 px-2 py-1 rounded transition-colors group">
+                    <span className="text-muted-foreground text-[10px]">
                       {log.timestamp}
                     </span>
-                    <div className="flex-shrink-0">
-                      {getLogTypeBadge(log.type)}
+                    <div className="flex gap-2">
+                      <div className="flex-shrink-0">
+                        {getLogTypeBadge(log.type)}
+                      </div>
+                      <span className={`flex-1 break-words ${getLogTypeColor(log.type)} font-semibold`}>
+                        {log.message}
+                      </span>
                     </div>
-                    <span className={`flex-1 break-words ${getLogTypeColor(log.type)} font-semibold`}>
-                      {log.message}
-                    </span>
                   </div>
                 ))
               )}

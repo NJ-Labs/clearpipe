@@ -166,22 +166,6 @@ export function getAvailableOutputVariables(
       }
       break;
       
-    case 'preprocessing':
-      outputs.push({
-        variable: '{{sourceNode.outputPath}}',
-        label: 'Primary Output Path',
-      });
-      const preprocessConfig = sourceNodeData.config as any;
-      if (preprocessConfig.steps && Array.isArray(preprocessConfig.steps)) {
-        preprocessConfig.steps.forEach((step: any, index: number) => {
-          outputs.push({
-            variable: `{{sourceNode.outputPaths[${index}]}}`,
-            label: `Step ${index + 1} - ${step.name}`,
-          });
-        });
-      }
-      break;
-      
     case 'training':
       outputs.push({
         variable: '{{sourceNode.modelPath}}',

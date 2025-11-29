@@ -126,6 +126,12 @@ export interface ExecuteConfig {
   customCode?: string;
 }
 
+// Data source variable mapping - maps a script variable to an output from the previous node
+export interface DataSourceVariableMapping {
+  variableName: string; // Variable name in the script (e.g., 'DATA_SOURCE')
+  sourceOutput: string; // Which output from the previous node to use (e.g., '{{sourceNode.outputPath}}' or 'inputPath' for default)
+}
+
 export interface ExecuteStep {
   id: string;
   name: string;
@@ -142,7 +148,8 @@ export interface ExecuteStep {
   inlineScript?: string; // Python code when scriptSource is 'inline'
   // Variable configuration
   useDataSourceVariable?: boolean; // Whether to use data source variable replacement (default: true)
-  dataSourceVariable?: string; // Variable name to replace with the input data path (default: 'DATA_SOURCE')
+  dataSourceVariable?: string; // Variable name to replace with the input data path (default: 'DATA_SOURCE') - deprecated, use dataSourceMappings
+  dataSourceMappings?: DataSourceVariableMapping[]; // Multiple variable mappings to outputs from previous node
   useOutputVariables?: boolean; // Whether to use output variable replacement (default: true)
   outputVariables?: string[]; // Variable names that contain output paths (default: ['OUTPUT_PATH'])
   // Virtual environment configuration (for local scripts)

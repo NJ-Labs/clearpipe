@@ -124,6 +124,12 @@ function getPythonCommand(step: ExecuteStep): { pythonPath: string; venvUsed: bo
   return { pythonPath: 'python3', venvUsed: false };
 }
 
+// Data source variable mapping - maps a script variable to an output from the previous node
+interface DataSourceVariableMapping {
+  variableName: string; // Variable name in the script (e.g., 'DATA_SOURCE')
+  sourceOutput: string; // Which output from the previous node to use (e.g., '{{sourceNode.outputPath}}' or 'inputPath' for default)
+}
+
 interface ExecuteStep {
   id: string;
   name: string;
@@ -134,7 +140,8 @@ interface ExecuteStep {
   scriptPath?: string;
   inlineScript?: string;
   useDataSourceVariable?: boolean; // Whether to use data source variable replacement
-  dataSourceVariable?: string;
+  dataSourceVariable?: string; // Legacy: single variable name (deprecated)
+  dataSourceMappings?: DataSourceVariableMapping[]; // New: multiple variable mappings
   useOutputVariables?: boolean; // Whether to use output variable replacement
   outputVariables?: string[]; // Support multiple output variables
   // Virtual environment configuration
@@ -145,6 +152,7 @@ interface ExecuteStep {
 interface RunExecuteRequest {
   step: ExecuteStep;
   inputPath: string; // Path from the dataset node
+  sourceNodeOutputs?: Record<string, string>; // Outputs from the source node for variable mapping
 }
 
 interface ExecuteResult {
@@ -161,7 +169,7 @@ interface ExecuteResult {
 export async function POST(request: NextRequest): Promise<NextResponse<ExecuteResult>> {
   try {
     const body: RunExecuteRequest = await request.json();
-    const { step, inputPath } = body;
+    const { step, inputPath, sourceNodeOutputs } = body;
 
     if (!step) {
       return NextResponse.json({
@@ -194,8 +202,14 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExecuteRe
       });
     }
 
-    const dataSourceVariable = step.dataSourceVariable || 'DATA_SOURCE';
+    // Handle data source mappings (new format) or legacy single variable
     const useDataSource = step.useDataSourceVariable !== false;
+    const dataSourceMappings: DataSourceVariableMapping[] = useDataSource 
+      ? (step.dataSourceMappings && step.dataSourceMappings.length > 0
+          ? step.dataSourceMappings
+          : [{ variableName: step.dataSourceVariable || 'DATA_SOURCE', sourceOutput: 'inputPath' }])
+      : [];
+    
     const useOutputVars = step.useOutputVariables !== false;
     const outputVariables = step.outputVariables && step.outputVariables.length > 0 
       ? step.outputVariables 
@@ -244,7 +258,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExecuteRe
     }
 
     // Create a wrapper script that:
-    // 1. Optionally sets up the data source variable
+    // 1. Optionally sets up the data source variables (with mappings to source node outputs)
     // 2. Runs the original script
     // 3. Optionally captures multiple output paths
     const tempDir = os.tmpdir();
@@ -253,40 +267,104 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExecuteRe
     // Escape paths for Python string (use empty string if no input path)
     const escapedInputPath = inputPath ? inputPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'") : '';
     
-    // Conditionally set up data source variable
-    const dataSourceSetup = useDataSource && inputPath
-      ? `# Set the data source variable\n${dataSourceVariable} = '${escapedInputPath}'`
-      : '# Data source variable disabled';
+    // Helper function to resolve a source output reference to its actual value
+    const resolveSourceOutput = (sourceOutput: string): string => {
+      if (sourceOutput === 'inputPath' || !sourceOutput) {
+        return escapedInputPath;
+      }
+      // Handle {{sourceNode.X}} pattern
+      const match = sourceOutput.match(/\{\{sourceNode\.(\w+(?:\[\d+\])?)\}\}/);
+      if (match && sourceNodeOutputs) {
+        const key = match[1];
+        // Handle array access like outputPaths[0]
+        const arrayMatch = key.match(/(\w+)\[(\d+)\]/);
+        if (arrayMatch) {
+          const [, arrayName, indexStr] = arrayMatch;
+          const index = parseInt(indexStr, 10);
+          const array = sourceNodeOutputs[arrayName];
+          if (Array.isArray(array) && array[index]) {
+            return (array[index] as string).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+          }
+        }
+        // Simple property access
+        if (sourceNodeOutputs[key]) {
+          return (sourceNodeOutputs[key] as string).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        }
+      }
+      // Default to input path
+      return escapedInputPath;
+    };
+    
+    // Build data source variable setup for each mapping
+    const dataSourceSetup = dataSourceMappings.length > 0
+      ? dataSourceMappings.map(mapping => {
+          const resolvedValue = resolveSourceOutput(mapping.sourceOutput);
+          return resolvedValue 
+            ? `'${mapping.variableName}': r'${resolvedValue}'`
+            : `'${mapping.variableName}': None`;
+        }).join(',\n    ')
+      : '';
     
     // Conditionally initialize output variables
     const outputVarInit = useOutputVars
-      ? outputVariables.map(v => `${v} = None`).join('\n')
-      : '# Output variables disabled';
+      ? outputVariables.map(v => `'${v}': None`).join(',\n    ')
+      : '';
     
     // Conditionally create the output printing logic
     const outputPrintLogic = useOutputVars
       ? outputVariables.map(v => `
-if ${v} is not None:
-    print(f"__OUTPUT__${v}__:{${v}}")
+if _exec_globals.get('${v}') is not None:
+    print(f"__OUTPUT__${v}__:{_exec_globals['${v}']}")
 ${escapedInputPath ? `else:\n    print(f"__OUTPUT__${v}__:${escapedInputPath}")` : ''}
 `).join('\n')
       : '# Output variable printing disabled';
     
-    // Create wrapper script
+    // Create wrapper script that properly injects variables
+    // We use string replacement instead of regex to avoid escape sequence issues
     const wrapperScript = `
 import sys
 import os
 
-${dataSourceSetup}
-
-# Initialize output variables
-${outputVarInit}
-
-# Store original script in a string and exec it
+# Original script content
 _original_script = '''${scriptContent.replace(/'/g, "\\'")}'''
 
-# Execute the original script in the current namespace
-exec(_original_script)
+# Variables to inject (these will override any definitions in the script)
+_inject_vars = {
+    ${dataSourceSetup}${dataSourceSetup && outputVarInit ? ',\n    ' : ''}${outputVarInit}
+}
+
+# Replace variable assignments in the script for each variable we want to inject
+# Using line-by-line replacement to avoid regex escape issues with Windows paths
+_lines = _original_script.split('\\n')
+_modified_lines = []
+
+for _line in _lines:
+    _replaced = False
+    for var_name, var_value in _inject_vars.items():
+        if var_value is not None and not _replaced:
+            # Check if this line starts with the variable assignment
+            _stripped = _line.lstrip()
+            if _stripped.startswith(var_name) and '=' in _stripped:
+                # Get the part before the variable name (indentation)
+                _indent = _line[:len(_line) - len(_stripped)]
+                # Check it's actually an assignment (VAR = or VAR=)
+                _after_var = _stripped[len(var_name):].lstrip()
+                if _after_var.startswith('='):
+                    # Replace the entire line with the new assignment
+                    _modified_lines.append(f'{_indent}{var_name} = r"{var_value}"')
+                    _replaced = True
+                    break
+    if not _replaced:
+        _modified_lines.append(_line)
+
+_modified_script = '\\n'.join(_modified_lines)
+
+# Create globals dict for exec
+_exec_globals = {'__name__': '__main__', '__file__': r'${step.scriptPath?.replace(/\\/g, '\\\\') || 'inline_script.py'}'}
+_exec_globals.update(_inject_vars)
+
+# Execute the modified script
+exec(_modified_script, _exec_globals)
 
 # Print all output paths at the end
 ${outputPrintLogic}

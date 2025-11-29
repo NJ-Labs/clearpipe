@@ -42,6 +42,7 @@ import type {
   TrainingConfig,
   ExperimentConfig as ExperimentConfigType,
   ReportConfig as ReportConfigType,
+  DataSourceVariableMapping,
 } from '@/types/pipeline';
 
 const nodeIcons: Record<string, React.ReactNode> = {
@@ -930,6 +931,7 @@ interface ExecuteConfigPanelProps {
 }
 
 function ExecuteConfigPanel({ config, onUpdate, nodeId }: ExecuteConfigPanelProps) {
+  const { nodes, edges } = usePipelineStore();
   const { connections, fetchConnections } = useSettingsStore();
   const [editingStepId, setEditingStepId] = useState<string | null>(null);
   const [hoveredStepId, setHoveredStepId] = useState<string | null>(null);
@@ -941,6 +943,20 @@ function ExecuteConfigPanel({ config, onUpdate, nodeId }: ExecuteConfigPanelProp
     pythonPath?: string;
     error?: string;
   }>({ checking: false, detected: false });
+  const [availableSourceOutputs, setAvailableSourceOutputs] = useState<Array<{ variable: string; label: string }>>([]);
+  
+  // Get available output variables from connected source node
+  useEffect(() => {
+    if (nodeId) {
+      const connectedNode = getConnectedSourceNode(nodeId, nodes, edges);
+      if (connectedNode) {
+        const vars = getAvailableOutputVariables(connectedNode.data);
+        setAvailableSourceOutputs(vars);
+      } else {
+        setAvailableSourceOutputs([]);
+      }
+    }
+  }, [nodeId, nodes, edges]);
   
   // Fetch connections on mount
   useEffect(() => {
@@ -1044,10 +1060,56 @@ function ExecuteConfigPanel({ config, onUpdate, nodeId }: ExecuteConfigPanelProp
       enabled: true,
       scriptSource: 'local',
       scriptPath: '',
-      dataSourceVariable: 'DATA_SOURCE',
+      dataSourceMappings: [{ variableName: 'DATA_SOURCE', sourceOutput: 'inputPath' }],
       outputVariables: ['OUTPUT_PATH'],
     };
     onUpdate({ steps: [...config.steps, newStep] });
+  };
+  
+  // Helper functions for managing data source mappings
+  const getDataSourceMappings = (step: ExecuteStep): DataSourceVariableMapping[] => {
+    // Support both old dataSourceVariable and new dataSourceMappings
+    if (step.dataSourceMappings && step.dataSourceMappings.length > 0) {
+      return step.dataSourceMappings;
+    }
+    // Migrate from old single variable to new mappings format
+    if (step.dataSourceVariable) {
+      return [{ variableName: step.dataSourceVariable, sourceOutput: 'inputPath' }];
+    }
+    return [{ variableName: 'DATA_SOURCE', sourceOutput: 'inputPath' }];
+  };
+  
+  const handleAddDataSourceMapping = (stepId: string) => {
+    const step = config.steps.find(s => s.id === stepId);
+    if (!step) return;
+    const currentMappings = getDataSourceMappings(step);
+    const newVarName = `DATA_SOURCE_${currentMappings.length + 1}`;
+    handleUpdateStep(stepId, { 
+      dataSourceMappings: [...currentMappings, { variableName: newVarName, sourceOutput: 'inputPath' }],
+      dataSourceVariable: undefined // Clear legacy field
+    });
+  };
+  
+  const handleRemoveDataSourceMapping = (stepId: string, index: number) => {
+    const step = config.steps.find(s => s.id === stepId);
+    if (!step) return;
+    const currentMappings = getDataSourceMappings(step);
+    if (currentMappings.length <= 1) return; // Keep at least one
+    handleUpdateStep(stepId, { 
+      dataSourceMappings: currentMappings.filter((_, i) => i !== index),
+      dataSourceVariable: undefined // Clear legacy field
+    });
+  };
+  
+  const handleUpdateDataSourceMapping = (stepId: string, index: number, updates: Partial<DataSourceVariableMapping>) => {
+    const step = config.steps.find(s => s.id === stepId);
+    if (!step) return;
+    const currentMappings = [...getDataSourceMappings(step)];
+    currentMappings[index] = { ...currentMappings[index], ...updates };
+    handleUpdateStep(stepId, { 
+      dataSourceMappings: currentMappings,
+      dataSourceVariable: undefined // Clear legacy field
+    });
   };
   
   // Helper functions for managing output variables
@@ -1388,7 +1450,7 @@ function ExecuteConfigPanel({ config, onUpdate, nodeId }: ExecuteConfigPanelProp
           
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label htmlFor="useDataSourceVariable">Data Source Variable</Label>
+              <Label htmlFor="useDataSourceVariable">Data Source Variables</Label>
               <ToggleSwitch
                 id="useDataSourceVariable"
                 checked={editingStep.useDataSourceVariable !== false}
@@ -1397,15 +1459,88 @@ function ExecuteConfigPanel({ config, onUpdate, nodeId }: ExecuteConfigPanelProp
             </div>
             {editingStep.useDataSourceVariable !== false && (
               <>
-                <Input
-                  id="dataSourceVariable"
-                  value={editingStep.dataSourceVariable || 'DATA_SOURCE'}
-                  onChange={(e) => handleUpdateStep(editingStep.id, { dataSourceVariable: e.target.value })}
-                  placeholder="DATA_SOURCE"
-                />
+                <div className="flex items-center justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleAddDataSourceMapping(editingStep.id)}
+                    className="h-7 text-xs"
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Add Variable
+                  </Button>
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  This variable in your script will be replaced with the input data path
+                  Map variables in your script to outputs from the connected node
                 </p>
+                <div className="space-y-3">
+                  {getDataSourceMappings(editingStep).map((mapping, index) => (
+                    <div key={index} className="border rounded-lg p-3 space-y-2 bg-muted/30">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-medium text-muted-foreground">Variable {index + 1}</Label>
+                        {getDataSourceMappings(editingStep).length > 1 && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-destructive hover:text-destructive"
+                            onClick={() => handleRemoveDataSourceMapping(editingStep.id, index)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Variable Name</Label>
+                        <Input
+                          value={mapping.variableName}
+                          onChange={(e) => handleUpdateDataSourceMapping(editingStep.id, index, { variableName: e.target.value })}
+                          placeholder="DATA_SOURCE"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Replace With</Label>
+                        <Select
+                          value={mapping.sourceOutput}
+                          onValueChange={(value) => handleUpdateDataSourceMapping(editingStep.id, index, { sourceOutput: value })}
+                        >
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue placeholder="Select source output" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="inputPath">
+                              <span className="flex items-center gap-2">
+                                <span className="text-primary">Input Path</span>
+                                <span className="text-xs text-muted-foreground">(default)</span>
+                              </span>
+                            </SelectItem>
+                            {availableSourceOutputs.length > 0 && (
+                              <>
+                                <SelectSeparator />
+                                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                                  From Connected Node
+                                </div>
+                                {availableSourceOutputs.map((output, idx) => (
+                                  <SelectItem key={idx} value={output.variable}>
+                                    <span className="flex flex-col">
+                                      <span className="font-mono text-xs">{output.variable}</span>
+                                      <span className="text-xs text-muted-foreground">{output.label}</span>
+                                    </span>
+                                  </SelectItem>
+                                ))}
+                              </>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          {mapping.sourceOutput === 'inputPath' 
+                            ? 'Uses the input path passed to this step'
+                            : `Uses ${mapping.sourceOutput} from the connected node`}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </>
             )}
             {editingStep.useDataSourceVariable === false && (

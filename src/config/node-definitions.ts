@@ -20,16 +20,18 @@ export const nodeTypeDefinitions: NodeTypeDefinition[] = [
     icon: 'GitBranch',
     category: 'data',
     defaultConfig: {
-      tool: 'dvc',
+      tool: 'clearml-data',
+      executionMode: 'local',
       version: '1.0.0',
+      clearmlAction: 'list',
     },
   },
   {
     type: 'execute',
     label: 'Execute',
-    description: 'Transform and prepare your data',
+    description: 'Run and Schedule scripts or code snippets',
     icon: 'Wand2',
-    category: 'processing',
+    category: 'scripts',
     defaultConfig: {
       steps: [],
     },
@@ -77,7 +79,7 @@ export const nodeTypeDefinitions: NodeTypeDefinition[] = [
 
 export const categoryColors: Record<string, string> = {
   data: 'bg-blue-500',
-  processing: 'bg-purple-500',
+  scripts: 'bg-purple-500',
   training: 'bg-orange-500',
   tracking: 'bg-green-500',
   output: 'bg-pink-500',
@@ -85,7 +87,7 @@ export const categoryColors: Record<string, string> = {
 
 export const categoryLabels: Record<string, string> = {
   data: 'Data',
-  processing: 'Processing',
+  scripts: 'Scripts',
   training: 'Training',
   tracking: 'Tracking',
   output: 'Output',

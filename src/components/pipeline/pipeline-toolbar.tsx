@@ -35,8 +35,8 @@ import {
   Loader2,
 } from 'lucide-react';
 import { usePipelineStore } from '@/stores/pipeline-store';
-import type { PipelineNodeData, PipelineNode, PipelineEdge, DatasetNodeData, ExecuteNodeData, ExecutionLogs } from '@/types/pipeline';
-import { checkDatasetConnection, runExecute } from '@/components/nodes';
+import type { PipelineNodeData, PipelineNode, PipelineEdge, DatasetNodeData, ExecuteNodeData, VersioningNodeData, ExecutionLogs } from '@/types/pipeline';
+import { checkDatasetConnection, runExecute, executeVersioning } from '@/components/nodes';
 import { SettingsDialog } from '@/components/ui/settings-dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -114,19 +114,27 @@ export function PipelineToolbar() {
     currentPipeline,
     savedPipelines,
     isDirty,
+    isLoading,
     savePipeline,
     loadPipeline,
     createNewPipeline,
     deletePipeline,
     exportPipeline,
     importPipeline,
+    fetchPipelines,
     reset,
     updateNodeStatus,
     updateNodeExecutionLogs,
+    updateNodeData,
   } = usePipelineStore();
 
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [loadDialogOpen, setLoadDialogOpen] = useState(false);
+
+  // Fetch saved pipelines on mount
+  React.useEffect(() => {
+    fetchPipelines();
+  }, [fetchPipelines]);
   const [isRunning, setIsRunning] = useState(false);
   const [runResults, setRunResults] = useState<NodeExecutionResult[]>([]);
   const [showResults, setShowResults] = useState(false);
@@ -448,6 +456,92 @@ export function PipelineToolbar() {
             break;
           }
 
+          case 'versioning': {
+            const versioningData = nodeData as VersioningNodeData;
+            
+            // Get source node outputs for variable resolution
+            const sourceNode = getSourceNode(node.id, edges, nodes);
+            let sourceNodeOutputs: Record<string, string> | undefined;
+            
+            if (sourceNode) {
+              const sourceOutput = outputs.get(sourceNode.id);
+              if (sourceOutput && typeof sourceOutput === 'object' && 'namedOutputs' in sourceOutput) {
+                sourceNodeOutputs = (sourceOutput as any).namedOutputs;
+              }
+            }
+            
+            // Execute versioning with resolved paths and source node outputs
+            const versioningResult = await executeVersioning(
+              versioningData.config,
+              undefined,
+              nodes,
+              edges,
+              node.id,
+              sourceNodeOutputs
+            );
+            
+            result = {
+              nodeId: node.id,
+              nodeLabel: nodeData.label,
+              nodeType: nodeType,
+              success: versioningResult.success,
+              message: versioningResult.message,
+              outputPath: versioningResult.outputPath,
+              error: versioningResult.success ? undefined : versioningResult.message,
+            };
+
+            if (versioningResult.success) {
+              // Build named outputs for downstream nodes
+              const namedOutputs: Record<string, string> = {};
+              
+              if (versioningResult.outputPath) {
+                namedOutputs['outputPath'] = versioningResult.outputPath;
+              }
+              if (versioningResult.inputPath) {
+                namedOutputs['inputPath'] = versioningResult.inputPath;
+              }
+              if (versioningResult.inputPaths) {
+                namedOutputs['inputPaths'] = versioningResult.inputPaths.join(',');
+                versioningResult.inputPaths.forEach((p, i) => {
+                  namedOutputs[`inputPaths[${i}]`] = p;
+                });
+              }
+              if (versioningResult.datasetId) {
+                namedOutputs['datasetId'] = versioningResult.datasetId;
+              }
+              if (versioningResult.datasetName) {
+                namedOutputs['datasetName'] = versioningResult.datasetName;
+              }
+              
+              outputs.set(node.id, { 
+                path: versioningResult.outputPath || versioningResult.inputPath || '',
+                namedOutputs,
+              } as any);
+              updateNodeStatus(node.id, 'completed', versioningResult.message);
+              
+              // Handle auto-version after create
+              if (versioningResult.shouldSwitchToVersion && versioningResult.createdDataset) {
+                // Update the node config to switch from 'create' to 'version' mode
+                updateNodeData(node.id, {
+                  config: {
+                    ...versioningData.config,
+                    clearmlAction: 'version',
+                    selectedDatasetId: versioningResult.createdDataset.id,
+                    selectedDataset: {
+                      id: versioningResult.createdDataset.id,
+                      name: versioningResult.createdDataset.name,
+                      project: versioningResult.createdDataset.project,
+                    },
+                    autoVersionAfterCreate: false, // Reset the toggle
+                  },
+                });
+              }
+            } else {
+              updateNodeStatus(node.id, 'error', versioningResult.message);
+            }
+            break;
+          }
+
           default: {
             // For other node types, just pass through the input
             const sourceNode = getSourceNode(node.id, edges, nodes);
@@ -520,7 +614,14 @@ export function PipelineToolbar() {
       </Button>
 
       {/* Save */}
-      <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+      <Dialog open={saveDialogOpen} onOpenChange={(open) => {
+        setSaveDialogOpen(open);
+        // Pre-fill with current pipeline data when opening
+        if (open && currentPipeline) {
+          setPipelineName(currentPipeline.name || '');
+          setPipelineDescription(currentPipeline.description || '');
+        }
+      }}>
         <DialogTrigger asChild>
           <Button variant="ghost" size="sm">
             <Save className="w-4 h-4 mr-1" />
@@ -529,9 +630,11 @@ export function PipelineToolbar() {
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Save Pipeline</DialogTitle>
+            <DialogTitle>{currentPipeline ? 'Update Pipeline' : 'Save Pipeline'}</DialogTitle>
             <DialogDescription>
-              Give your pipeline a name and optional description.
+              {currentPipeline 
+                ? 'Update your pipeline with a new name or description.'
+                : 'Give your pipeline a name and optional description.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -556,13 +659,21 @@ export function PipelineToolbar() {
             <Button variant="outline" onClick={() => setSaveDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSave}>Save Pipeline</Button>
+            <Button onClick={handleSave} disabled={!pipelineName.trim()}>
+              {currentPipeline ? 'Update Pipeline' : 'Save Pipeline'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Load */}
-      <Dialog open={loadDialogOpen} onOpenChange={setLoadDialogOpen}>
+      <Dialog open={loadDialogOpen} onOpenChange={(open) => {
+        setLoadDialogOpen(open);
+        // Refresh pipelines list when opening
+        if (open) {
+          fetchPipelines();
+        }
+      }}>
         <DialogTrigger asChild>
           <Button variant="ghost" size="sm">
             <FolderOpen className="w-4 h-4 mr-1" />
@@ -577,7 +688,12 @@ export function PipelineToolbar() {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 max-h-[300px] overflow-y-auto">
-            {savedPipelines.length === 0 ? (
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                <span className="ml-2 text-sm text-muted-foreground">Loading pipelines...</span>
+              </div>
+            ) : savedPipelines.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
                 No saved pipelines yet.
               </p>

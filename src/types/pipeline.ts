@@ -98,16 +98,53 @@ export interface VersioningNodeData extends BaseNodeData {
   config: VersioningConfig;
 }
 
+// ClearML dataset info
+export interface ClearMLDatasetInfo {
+  id: string;
+  name: string;
+  project: string;
+  projectName?: string; // Human-readable project name
+  version?: string;
+  tags?: string[];
+  createdAt?: string;
+  fileCount?: number;
+  totalSize?: number;
+}
+
 export interface VersioningConfig {
   [key: string]: unknown;
   tool: 'dvc' | 'git-lfs' | 'clearml-data' | 'mlflow-artifacts' | 'custom';
+  // Execution mode
+  executionMode: 'local' | 'cloud';
+  // Connection ID for cloud execution (reference to a saved connection from settings)
+  connectionId?: string;
+  // Version information
   version: string;
   commitHash?: string;
   remoteUrl?: string;
+  // ClearML specific
+  clearmlAction?: 'list' | 'version' | 'create' | 'download';
+  selectedDatasetId?: string;
+  selectedDataset?: ClearMLDatasetInfo;
+  newDatasetName?: string;
+  newDatasetProject?: string;
+  datasetTags?: string[];
+  autoVersionAfterCreate?: boolean; // When true, after first run with 'create', switch to 'version' mode
+  // Input/output paths
+  inputPath?: string; // Path to data to version (for create/version actions)
+  inputPaths?: string[]; // Multiple paths to data (for create action with multiple sources)
+  outputPath?: string; // Path to download data to (for download action)
+  // Credentials (for local mode without connection)
   credentials?: {
     token?: string;
     username?: string;
     password?: string;
+    // ClearML specific
+    clearmlApiHost?: string;
+    clearmlWebHost?: string;
+    clearmlFilesHost?: string;
+    clearmlAccessKey?: string;
+    clearmlSecretKey?: string;
   };
   metadata?: Record<string, unknown>;
 }
@@ -292,7 +329,7 @@ export interface NodeTypeDefinition {
   label: string;
   description: string;
   icon: string;
-  category: 'data' | 'processing' | 'training' | 'tracking' | 'output';
+  category: 'data' | 'scripts' | 'training' | 'tracking' | 'output';
   defaultConfig: Partial<PipelineNodeData['config']>;
 }
 

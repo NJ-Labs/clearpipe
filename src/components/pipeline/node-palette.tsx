@@ -63,7 +63,7 @@ export function NodePalette({ onDragStart }: NodePaletteProps) {
 
   const categoryColorMap: Record<string, string> = {
     data: 'border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/20',
-    processing: 'border-purple-500/50 bg-purple-500/10 hover:bg-purple-500/20',
+    scripts: 'border-purple-500/50 bg-purple-500/10 hover:bg-purple-500/20',
     training: 'border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20',
     tracking: 'border-green-500/50 bg-green-500/10 hover:bg-green-500/20',
     output: 'border-pink-500/50 bg-pink-500/10 hover:bg-pink-500/20',

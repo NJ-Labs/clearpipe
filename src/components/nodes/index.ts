@@ -1,6 +1,7 @@
 // Node components and their execution functions
 export { DatasetNode, checkDatasetConnection } from './dataset';
-export { VersioningNode, executeVersioning } from './versioning';
+export { VersioningNode, executeVersioning, listClearMLDatasets } from './versioning';
+export type { VersioningExecutionResult } from './versioning';
 export { ExecuteNode, runExecute } from './execute';
 export type { ExecuteExecutionResult } from './execute';
 export { TrainingNode, executeTraining } from './training';

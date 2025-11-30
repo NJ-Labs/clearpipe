@@ -84,7 +84,7 @@ const getDefaultNodeData = (type: PipelineNodeData['type']): PipelineNodeData =>
           source: 'local',
           path: '',
           format: 'csv',
-        },
+        } as any,
       };
     case 'versioning':
       return {
@@ -95,24 +95,24 @@ const getDefaultNodeData = (type: PipelineNodeData['type']): PipelineNodeData =>
         config: {
           tool: 'dvc',
           version: '1.0.0',
-        },
+        } as any,
       };
     case 'execute':
       return {
         ...baseData,
         type: 'execute',
         label: 'Execute',
-        description: 'Transform and prepare your data',
+        description: 'Run and Schedule scripts or code snippets',
         config: {
           steps: [],
-        },
+        } as any,
       };
     case 'training':
       return {
         ...baseData,
         type: 'training',
         label: 'Model Training',
-        description: 'Train your ML model',
+        description: 'Train ML models on cloud or local',
         config: {
           framework: 'pytorch',
           cloudProvider: 'local',
@@ -120,7 +120,7 @@ const getDefaultNodeData = (type: PipelineNodeData['type']): PipelineNodeData =>
           instanceConfig: {},
           credentials: {},
           hyperparameters: {},
-        },
+        } as any,
       };
     case 'experiment':
       return {
@@ -136,7 +136,7 @@ const getDefaultNodeData = (type: PipelineNodeData['type']): PipelineNodeData =>
           logMetrics: true,
           logArtifacts: true,
           logHyperparameters: true,
-        },
+        } as any,
       };
     case 'report':
       return {
@@ -150,7 +150,7 @@ const getDefaultNodeData = (type: PipelineNodeData['type']): PipelineNodeData =>
           includeVisualizations: true,
           includeModelCard: true,
           outputFormat: 'html',
-        },
+        } as any,
       };
     default:
       throw new Error(`Unknown node type: ${type}`);

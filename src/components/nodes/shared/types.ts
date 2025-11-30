@@ -24,4 +24,4 @@ export interface NodeExecutionResult {
 export type StatusIconMap = Record<NodeStatus, React.ComponentType<{ className?: string }>>;
 
 // Category type
-export type NodeCategory = 'data' | 'processing' | 'training' | 'tracking' | 'output';
+export type NodeCategory = 'data' | 'scripts' | 'training' | 'tracking' | 'output';

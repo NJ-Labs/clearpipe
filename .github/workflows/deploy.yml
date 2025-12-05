@@ -28,6 +28,9 @@ jobs:
         run: pnpm install
 
       - name: Build static export
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
         run: pnpm build
 
       - name: Install lftp

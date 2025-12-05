@@ -46,6 +46,7 @@ export function ShareCanvasDialog({ open, onOpenChange }: ShareCanvasDialogProps
   const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [shareSettings, setShareSettings] = useState<ShareSettings | null>(null);
   const [isPublic, setIsPublic] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
@@ -164,6 +165,7 @@ export function ShareCanvasDialog({ open, onOpenChange }: ShareCanvasDialogProps
 
     setInviting(true);
     setError(null);
+    setSuccess(null);
 
     try {
       const res = await fetch('/api/team-members', {
@@ -180,6 +182,20 @@ export function ShareCanvasDialog({ open, onOpenChange }: ShareCanvasDialogProps
         const newMember = await res.json();
         setTeamMembers(prev => [newMember, ...prev]);
         setEmail("");
+        
+        // Show appropriate feedback based on email status
+        if (newMember.emailSent) {
+          setSuccess(`Invitation sent to ${email}`);
+        } else if (newMember.emailNotConfigured) {
+          setError("Member added, but email not configured. Please share the link manually.");
+        } else if (newMember.emailError) {
+          setError(`Member added, but email failed: ${newMember.emailError}`);
+        } else {
+          setSuccess("Member added successfully");
+        }
+        
+        // Clear success message after 5 seconds
+        setTimeout(() => setSuccess(null), 5000);
       } else {
         const data = await res.json();
         setError(data.error || "Failed to send invitation");
@@ -369,7 +385,17 @@ export function ShareCanvasDialog({ open, onOpenChange }: ShareCanvasDialogProps
           </div>
 
           {error && (
-            <p className="text-sm text-destructive mt-2">{error}</p>
+            <p className="text-sm text-destructive mt-2 flex items-center gap-1">
+              <Icon icon="solar:danger-circle-bold" className="size-4 shrink-0" />
+              {error}
+            </p>
+          )}
+
+          {success && (
+            <p className="text-sm text-green-600 dark:text-green-400 mt-2 flex items-center gap-1">
+              <Icon icon="solar:check-circle-bold" className="size-4 shrink-0" />
+              {success}
+            </p>
           )}
         </div>
 

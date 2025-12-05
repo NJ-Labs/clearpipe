@@ -95,15 +95,14 @@ export async function POST(request: NextRequest) {
       to: email,
       inviterName,
       inviterEmail,
+      pipelineName: undefined, // Could fetch pipeline name if pipelineId provided
       shareUrl: inviteUrl,
     });
 
-    if (!emailResult.success && emailResult.error && !emailResult.error.includes('not configured')) {
-      console.error('Failed to send invitation email:', emailResult.error);
-      // Still return success - member was created, just email failed
-    }
+    // Log email result for debugging
+    console.log('Email send result:', emailResult);
 
-    // Return in frontend format
+    // Return in frontend format with email status
     return NextResponse.json({
       id: member.id,
       name: member.name,
@@ -111,6 +110,8 @@ export async function POST(request: NextRequest) {
       avatarUrl: member.avatar_url,
       invitedAt: member.invited_at,
       emailSent: emailResult.success,
+      emailError: emailResult.error,
+      emailNotConfigured: emailResult.notConfigured,
     }, { status: 201 });
   } catch (error) {
     console.error('Error creating team member:', error);

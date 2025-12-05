@@ -45,9 +45,11 @@ jobs:
         run: |
           lftp -c "
           set ftp:ssl-allow no;
+          set mirror:parallel-transfer-count 10;
+          set mirror:parallel-directories yes;
           open -u $FTP_USERNAME,$FTP_PASSWORD $FTP_SERVER;
           lcd out;
           cd $FTP_SERVER_DIR;
-          mirror --reverse --verbose --delete;
+          mirror --reverse --verbose --delete --parallel=10;
           bye;
           "

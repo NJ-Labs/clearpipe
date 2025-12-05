@@ -28,6 +28,7 @@ import { ControlledSettingsDialog } from '@/components/ui/settings-dialog';
 import { dataFormatOptions } from '@/config/node-definitions';
 import type { DataFormatOption } from '@/config/node-definitions';
 import { getConnectedSourceNode, getAvailableOutputVariables } from '@/components/nodes/shared/utils';
+import { useBroadcastChange } from '@/components/collaboration';
 import type {
   PipelineNodeData,
   DatasetNodeData,
@@ -456,6 +457,19 @@ function MultiPathInputWithSuggestions({
 export function NodeConfigPanel() {
   const { nodes, selectedNodeId, selectNode, updateNodeData } = usePipelineStore();
   
+  // Import collaboration broadcast
+  let broadcastPipelineChange: ((type: string, payload: any) => void) | undefined;
+  try {
+    // Dynamically use the collaboration context if available
+    const { useCollaboration } = require('@/components/collaboration');
+    const { broadcastPipelineChange: broadcast, isConnected } = useCollaboration();
+    if (isConnected) {
+      broadcastPipelineChange = broadcast;
+    }
+  } catch {
+    // Collaboration not available, that's ok
+  }
+  
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
   const nodeData = selectedNode?.data as PipelineNodeData | undefined;
   const nodeType = nodeData?.type;
@@ -468,19 +482,30 @@ export function NodeConfigPanel() {
     (updates: Record<string, unknown>) => {
       if (!selectedNodeId || !nodeData) return;
       const currentConfig = nodeData.config as Record<string, unknown>;
-      updateNodeData(selectedNodeId, {
+      const newData = {
         config: { ...currentConfig, ...updates },
-      } as unknown as Partial<PipelineNodeData>);
+      } as unknown as Partial<PipelineNodeData>;
+      updateNodeData(selectedNodeId, newData);
+      
+      // Broadcast to collaborators
+      if (broadcastPipelineChange) {
+        broadcastPipelineChange('node_data', { nodeId: selectedNodeId, data: newData });
+      }
     },
-    [nodeData, selectedNodeId, updateNodeData]
+    [nodeData, selectedNodeId, updateNodeData, broadcastPipelineChange]
   );
   
   const handleUpdateBase = useCallback(
     (updates: Partial<PipelineNodeData>) => {
       if (!selectedNodeId) return;
       updateNodeData(selectedNodeId, updates);
+      
+      // Broadcast to collaborators
+      if (broadcastPipelineChange) {
+        broadcastPipelineChange('node_data', { nodeId: selectedNodeId, data: updates });
+      }
     },
-    [selectedNodeId, updateNodeData]
+    [selectedNodeId, updateNodeData, broadcastPipelineChange]
   );
   
   if (!selectedNode || !selectedNodeId || !nodeData) {

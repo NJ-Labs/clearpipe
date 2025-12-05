@@ -40,6 +40,15 @@ export interface PipelineRow {
   updated_at: string;
 }
 
+export interface TeamMemberRow {
+  id: string;
+  user_id: string;
+  name: string;
+  email: string;
+  avatar_url?: string;
+  invited_at: string;
+}
+
 // ============================================================================
 // Secrets Repository
 // ============================================================================
@@ -586,6 +595,139 @@ export const pipelinesRepository = {
     
     const { error, count } = await supabase
       .from('pipelines')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id);
+    
+    if (error) throw error;
+    return (count ?? 0) > 0;
+  },
+};
+
+// ============================================================================
+// Team Members Repository
+// ============================================================================
+export const teamMembersRepository = {
+  async getAll(): Promise<TeamMemberRow[]> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) throw new Error('Unauthorized');
+    
+    const { data, error } = await supabase
+      .from('team_members')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('invited_at', { ascending: false });
+    
+    if (error) {
+      // If table doesn't exist, return empty array
+      if (error.code === '42P01' || error.message?.includes('does not exist')) {
+        console.warn('team_members table does not exist yet');
+        return [];
+      }
+      throw error;
+    }
+    return data || [];
+  },
+
+  async getById(id: string): Promise<TeamMemberRow | null> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) throw new Error('Unauthorized');
+    
+    const { data, error } = await supabase
+      .from('team_members')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') {
+      if (error.code === '42P01' || error.message?.includes('does not exist')) {
+        return null;
+      }
+      throw error;
+    }
+    return data;
+  },
+
+  async getByEmail(email: string): Promise<TeamMemberRow | null> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) throw new Error('Unauthorized');
+    
+    const { data, error } = await supabase
+      .from('team_members')
+      .select('*')
+      .eq('user_id', user.id)
+      .ilike('email', email)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') {
+      if (error.code === '42P01' || error.message?.includes('does not exist')) {
+        return null;
+      }
+      throw error;
+    }
+    return data;
+  },
+
+  async create(data: { name: string; email: string; avatarUrl?: string }): Promise<TeamMemberRow> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) throw new Error('Unauthorized');
+    
+    const { data: member, error } = await supabase
+      .from('team_members')
+      .insert({
+        user_id: user.id,
+        name: data.name,
+        email: data.email,
+        avatar_url: data.avatarUrl || null,
+        invited_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return member;
+  },
+
+  async update(id: string, data: Partial<{ name: string; email: string; avatarUrl: string }>): Promise<TeamMemberRow | null> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) throw new Error('Unauthorized');
+    
+    const updateData: Record<string, unknown> = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.email !== undefined) updateData.email = data.email;
+    if (data.avatarUrl !== undefined) updateData.avatar_url = data.avatarUrl;
+    
+    const { data: member, error } = await supabase
+      .from('team_members')
+      .update(updateData)
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .select()
+      .single();
+    
+    if (error && error.code !== 'PGRST116') throw error;
+    return member;
+  },
+
+  async delete(id: string): Promise<boolean> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) throw new Error('Unauthorized');
+    
+    const { error, count } = await supabase
+      .from('team_members')
       .delete()
       .eq('id', id)
       .eq('user_id', user.id);

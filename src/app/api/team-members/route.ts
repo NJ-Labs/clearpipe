@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { teamMembersRepository } from '@/lib/db/repositories';
+import { teamMembersRepository } from '@/lib/db/supabase-repositories';
 
 // GET /api/team-members - Get all team members
 export async function GET() {
   try {
     const members = await teamMembersRepository.getAll();
-    return NextResponse.json(members);
+    // Map to frontend format
+    return NextResponse.json(members.map(m => ({
+      id: m.id,
+      name: m.name,
+      email: m.email,
+      avatarUrl: m.avatar_url,
+      invitedAt: m.invited_at,
+    })));
   } catch (error) {
     console.error('Error fetching team members:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch team members' },
-      { status: 500 }
-    );
+    // Return empty array if table doesn't exist or other error
+    return NextResponse.json([]);
   }
 }
 
@@ -60,7 +65,14 @@ export async function POST(request: NextRequest) {
 
     // TODO: In production, send actual email invitation here
 
-    return NextResponse.json(member, { status: 201 });
+    // Return in frontend format
+    return NextResponse.json({
+      id: member.id,
+      name: member.name,
+      email: member.email,
+      avatarUrl: member.avatar_url,
+      invitedAt: member.invited_at,
+    }, { status: 201 });
   } catch (error) {
     console.error('Error creating team member:', error);
     return NextResponse.json(

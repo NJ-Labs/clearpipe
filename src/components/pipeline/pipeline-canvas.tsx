@@ -412,12 +412,22 @@ export function PipelineCanvas() {
   const currentPipeline = usePipelineStore((state) => state.currentPipeline);
   
   // Get current user info for collaboration
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  
+  // Debug logging for collaboration
+  useEffect(() => {
+    console.log('[Collaboration] State:', {
+      pipelineId: currentPipeline?.id,
+      userId: user?.id,
+      userName: user?.name || user?.email?.split('@')[0],
+      authLoading,
+    });
+  }, [currentPipeline?.id, user, authLoading]);
   
   return (
     <ReactFlowProvider>
       <CollaborationProvider 
-        pipelineId={currentPipeline?.id || undefined}
+        pipelineId={currentPipeline?.id}
         userId={user?.id}
         userName={user?.name || user?.email?.split('@')[0]}
         userEmail={user?.email}

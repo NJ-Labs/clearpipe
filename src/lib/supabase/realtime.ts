@@ -106,6 +106,7 @@ export class PipelineRealtimeManager {
     }
 
     const channelName = `pipeline:${this.pipelineId}`;
+    console.log('[Realtime] Creating channel:', channelName);
     
     this.channel = this.supabase.channel(channelName, {
       config: {
@@ -121,11 +122,13 @@ export class PipelineRealtimeManager {
       
       const state = this.channel.presenceState<UserPresence>();
       const users = this.parsePresenceState(state);
+      console.log('[Realtime] Presence sync, users:', users.length, users.map(u => u.name));
       this.onPresenceSync?.(users);
     });
 
     // Handle user join
     this.channel.on('presence', { event: 'join' }, ({ key, newPresences }) => {
+      console.log('[Realtime] User join event:', key);
       const presence = newPresences[0] as unknown as UserPresence | undefined;
       if (presence && key !== this.userId) {
         this.onUserJoin?.(presence);
@@ -134,6 +137,7 @@ export class PipelineRealtimeManager {
 
     // Handle user leave
     this.channel.on('presence', { event: 'leave' }, ({ key }) => {
+      console.log('[Realtime] User leave event:', key);
       if (key !== this.userId) {
         this.onUserLeave?.(key);
       }
@@ -150,6 +154,7 @@ export class PipelineRealtimeManager {
     // Handle pipeline changes
     this.channel.on('broadcast', { event: 'pipeline_change' }, ({ payload }) => {
       const change = payload as PipelineChangeBroadcast;
+      console.log('[Realtime] Pipeline change received:', change.type, 'from:', change.userId);
       if (change.userId !== this.userId) {
         this.onPipelineChange?.(change);
       }
@@ -158,19 +163,30 @@ export class PipelineRealtimeManager {
     // Subscribe and track presence
     return new Promise((resolve) => {
       this.channel!.subscribe(async (status) => {
+        console.log('[Realtime] Channel status:', status);
         if (status === 'SUBSCRIBED') {
+          console.log('[Realtime] Channel subscribed, tracking presence...');
           // Track our presence
-          await this.channel!.track({
-            id: this.userId,
-            name: this.userName,
-            email: this.userEmail,
-            avatarUrl: this.userAvatar,
-            color: getUserColor(this.userId),
-            lastSeen: new Date().toISOString(),
-          } as UserPresence);
-          resolve(true);
+          try {
+            await this.channel!.track({
+              id: this.userId,
+              name: this.userName,
+              email: this.userEmail,
+              avatarUrl: this.userAvatar,
+              color: getUserColor(this.userId),
+              lastSeen: new Date().toISOString(),
+            } as UserPresence);
+            console.log('[Realtime] Presence tracked successfully');
+            resolve(true);
+          } catch (err) {
+            console.error('[Realtime] Failed to track presence:', err);
+            resolve(false);
+          }
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('[Realtime] Channel error or timeout:', status);
           resolve(false);
+        } else if (status === 'CLOSED') {
+          console.log('[Realtime] Channel closed');
         }
       });
     });

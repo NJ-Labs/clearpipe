@@ -166,11 +166,29 @@ export function CollaborationProvider({
 
   // Connect to realtime channel
   useEffect(() => {
-    if (!pipelineId || !userId) {
+    // Log connection attempt details
+    console.log('[Collaboration] Connection check:', {
+      pipelineId,
+      userId,
+      userName,
+      hasManager: !!managerRef.current,
+    });
+
+    if (!pipelineId) {
+      console.log('[Collaboration] No pipeline ID, skipping connection');
       setCollaborators([]);
       setIsConnected(false);
       return;
     }
+
+    if (!userId) {
+      console.log('[Collaboration] No user ID, skipping connection');
+      setCollaborators([]);
+      setIsConnected(false);
+      return;
+    }
+
+    console.log('[Collaboration] Connecting to channel for pipeline:', pipelineId);
 
     // Create and configure the realtime manager
     const manager = realtimeService.createManager({
@@ -183,6 +201,7 @@ export function CollaborationProvider({
 
     manager.setHandlers({
       onPresenceSync: (users) => {
+        console.log('[Collaboration] Presence sync, users:', users.length);
         setCollaborators(users.map(userPresenceToCollaborator));
       },
 
@@ -197,6 +216,7 @@ export function CollaborationProvider({
       onPipelineChange: handlePipelineChange,
 
       onUserJoin: (user) => {
+        console.log('[Collaboration] User joined:', user.name);
         setCollaborators(prev => {
           // Check if user already exists
           if (prev.find(c => c.id === user.id)) {
@@ -207,6 +227,7 @@ export function CollaborationProvider({
       },
 
       onUserLeave: (leftUserId) => {
+        console.log('[Collaboration] User left:', leftUserId);
         setCollaborators(prev => prev.map(c =>
           c.id === leftUserId ? { ...c, isOnline: false } : c
         ).filter(c => c.isOnline)); // Remove offline users after a moment
@@ -217,14 +238,21 @@ export function CollaborationProvider({
 
     // Connect to the channel
     manager.connect().then((connected) => {
+      console.log('[Collaboration] Connection result:', connected);
       setIsConnected(connected);
       if (!connected) {
-        console.warn('Failed to connect to collaboration channel');
+        console.warn('[Collaboration] Failed to connect to collaboration channel');
+      } else {
+        console.log('[Collaboration] Successfully connected to channel');
       }
+    }).catch((err) => {
+      console.error('[Collaboration] Connection error:', err);
+      setIsConnected(false);
     });
 
     // Cleanup on unmount or when deps change
     return () => {
+      console.log('[Collaboration] Disconnecting from pipeline:', pipelineId);
       realtimeService.disconnectPipeline(pipelineId);
       managerRef.current = null;
       setIsConnected(false);

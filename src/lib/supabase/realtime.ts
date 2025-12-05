@@ -126,7 +126,7 @@ export class PipelineRealtimeManager {
 
     // Handle user join
     this.channel.on('presence', { event: 'join' }, ({ key, newPresences }) => {
-      const presence = newPresences[0] as UserPresence | undefined;
+      const presence = newPresences[0] as unknown as UserPresence | undefined;
       if (presence && key !== this.userId) {
         this.onUserJoin?.(presence);
       }

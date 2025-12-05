@@ -293,3 +293,14 @@ export function useBroadcastChange() {
   const { broadcastPipelineChange } = useCollaboration();
   return broadcastPipelineChange;
 }
+
+// Safe version of useBroadcastChange that can be used outside CollaborationProvider
+// Returns a no-op function if not in a collaboration context
+export function useSafeBroadcastChange() {
+  const context = useContext(CollaborationContext);
+  if (!context) {
+    // Return a no-op function when not in collaboration context
+    return (() => {}) as (type: PipelineChangeBroadcast['type'], payload: any) => void;
+  }
+  return context.broadcastPipelineChange;
+}

@@ -28,7 +28,7 @@ import { ControlledSettingsDialog } from '@/components/ui/settings-dialog';
 import { dataFormatOptions } from '@/config/node-definitions';
 import type { DataFormatOption } from '@/config/node-definitions';
 import { getConnectedSourceNode, getAvailableOutputVariables } from '@/components/nodes/shared/utils';
-import { useBroadcastChange } from '@/components/collaboration';
+import { useSafeBroadcastChange } from '@/components/collaboration';
 import type {
   PipelineNodeData,
   DatasetNodeData,
@@ -457,18 +457,8 @@ function MultiPathInputWithSuggestions({
 export function NodeConfigPanel() {
   const { nodes, selectedNodeId, selectNode, updateNodeData } = usePipelineStore();
   
-  // Import collaboration broadcast
-  let broadcastPipelineChange: ((type: string, payload: any) => void) | undefined;
-  try {
-    // Dynamically use the collaboration context if available
-    const { useCollaboration } = require('@/components/collaboration');
-    const { broadcastPipelineChange: broadcast, isConnected } = useCollaboration();
-    if (isConnected) {
-      broadcastPipelineChange = broadcast;
-    }
-  } catch {
-    // Collaboration not available, that's ok
-  }
+  // Get collaboration broadcast function (safe to use outside provider)
+  const broadcastPipelineChange = useSafeBroadcastChange();
   
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
   const nodeData = selectedNode?.data as PipelineNodeData | undefined;
@@ -488,9 +478,7 @@ export function NodeConfigPanel() {
       updateNodeData(selectedNodeId, newData);
       
       // Broadcast to collaborators
-      if (broadcastPipelineChange) {
-        broadcastPipelineChange('node_data', { nodeId: selectedNodeId, data: newData });
-      }
+      broadcastPipelineChange('node_data', { nodeId: selectedNodeId, data: newData });
     },
     [nodeData, selectedNodeId, updateNodeData, broadcastPipelineChange]
   );
@@ -501,9 +489,7 @@ export function NodeConfigPanel() {
       updateNodeData(selectedNodeId, updates);
       
       // Broadcast to collaborators
-      if (broadcastPipelineChange) {
-        broadcastPipelineChange('node_data', { nodeId: selectedNodeId, data: updates });
-      }
+      broadcastPipelineChange('node_data', { nodeId: selectedNodeId, data: updates });
     },
     [selectedNodeId, updateNodeData, broadcastPipelineChange]
   );

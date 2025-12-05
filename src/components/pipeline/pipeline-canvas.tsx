@@ -127,7 +127,7 @@ function PipelineCanvasInner() {
   } = usePipelineStore();
 
   // Wrap onNodesChange to broadcast changes to collaborators
-  const handleNodesChange = useCallback((changes: NodeChange[]) => {
+  const handleNodesChange = useCallback((changes: NodeChange<PipelineNode>[]) => {
     onNodesChange(changes);
     
     // Only broadcast meaningful changes (position, dimensions, etc.)

@@ -4,6 +4,7 @@ export {
   useOtherCollaborators, 
   useOnlineCollaborators,
   useBroadcastChange,
+  useSafeBroadcastChange,
   type Collaborator 
 } from './collaboration-context';
 export { CollaboratorAvatars } from './collaborator-avatars';

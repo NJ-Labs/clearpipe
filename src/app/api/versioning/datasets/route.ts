@@ -65,7 +65,8 @@ async function getCredentials(
         provider: connection.provider,
       });
       
-      const config = JSON.parse(connection.config);
+      // Config is already a JSON object from Supabase (JSONB)
+      const config = connection.config as Record<string, string>;
       console.log('Connection config:', {
         apiHost: config.apiHost,
         accessKeySecretId: config.accessKeySecretId,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectionsRepository, secretsRepository } from '@/lib/db/repositories';
+import { connectionsRepository, secretsRepository } from '@/lib/db/supabase-repositories';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -19,7 +19,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
     
-    const config = JSON.parse(connection.config);
+    // Config is already a JSON object from Supabase (JSONB)
+    const config = connection.config || {};
     const credentials: Record<string, string> = {};
     
     // Resolve all secret references in the config

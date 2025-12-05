@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import * as path from 'path';
-import { connectionsRepository, secretsRepository } from '@/lib/db/repositories';
+import { connectionsRepository, secretsRepository } from '@/lib/db/supabase-repositories';
 
 interface ClearMLDataset {
   id: string;

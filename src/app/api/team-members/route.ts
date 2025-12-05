@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { teamMembersRepository } from '@/lib/db/supabase-repositories';
+import { createClient } from '@/lib/supabase/server';
+import { sendInviteEmail } from '@/lib/email';
 
 // GET /api/team-members - Get all team members
 export async function GET() {
@@ -24,7 +26,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email } = body;
+    const { email, pipelineId, shareUrl } = body;
 
     if (!email) {
       return NextResponse.json(
@@ -39,6 +41,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Invalid email format' },
         { status: 400 }
+      );
+    }
+
+    // Get current user info for the invitation email
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
       );
     }
 
@@ -58,12 +71,37 @@ export async function POST(request: NextRequest) {
       .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ');
 
+    // Create team member record
     const member = await teamMembersRepository.create({
       name,
       email,
     });
 
-    // TODO: In production, send actual email invitation here
+    // Get inviter info from user metadata or email
+    const inviterName = user.user_metadata?.full_name || 
+                        user.user_metadata?.name || 
+                        user.email?.split('@')[0] || 
+                        'A ClearPipe user';
+    const inviterEmail = user.email || '';
+
+    // Determine the share URL
+    const baseUrl = request.nextUrl.origin;
+    const inviteUrl = shareUrl || (pipelineId 
+      ? `${baseUrl}/canvas/${pipelineId}` 
+      : `${baseUrl}/signup?invited_by=${user.id}`);
+
+    // Send invitation email
+    const emailResult = await sendInviteEmail({
+      to: email,
+      inviterName,
+      inviterEmail,
+      shareUrl: inviteUrl,
+    });
+
+    if (!emailResult.success && emailResult.error && !emailResult.error.includes('not configured')) {
+      console.error('Failed to send invitation email:', emailResult.error);
+      // Still return success - member was created, just email failed
+    }
 
     // Return in frontend format
     return NextResponse.json({
@@ -72,6 +110,7 @@ export async function POST(request: NextRequest) {
       email: member.email,
       avatarUrl: member.avatar_url,
       invitedAt: member.invited_at,
+      emailSent: emailResult.success,
     }, { status: 201 });
   } catch (error) {
     console.error('Error creating team member:', error);

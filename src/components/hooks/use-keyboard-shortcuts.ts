@@ -208,7 +208,7 @@ export function useKeyboardShortcuts({
         debounceAction(() => {
           // Get the center of the current viewport for paste position
           const viewport = reactFlow.getViewport();
-          const { width, height } = reactFlow.getInternalNodes().length > 0 
+          const { width, height } = reactFlow.getNodes().length > 0 
             ? { width: window.innerWidth, height: window.innerHeight }
             : { width: 800, height: 600 };
           

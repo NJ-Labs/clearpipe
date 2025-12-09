@@ -43,7 +43,7 @@ export interface NodeDataPayload {
 
 export interface NodeAddPayload {
   id: string;
-  type: string;
+  type?: string;
   position: { x: number; y: number };
   data?: Record<string, unknown>;
   [key: string]: unknown;
@@ -58,6 +58,10 @@ export interface FullSyncPayload {
   edges: Array<{ source: string; target: string; [key: string]: unknown }>;
 }
 
+// Array types for batch changes (from React Flow)
+export type NodeChangesPayload = Array<{ type: string; id?: string; [key: string]: unknown }>;
+export type EdgeChangesPayload = Array<{ type: string; id?: string; [key: string]: unknown }>;
+
 // Union type for all possible payloads
 export type PipelineChangePayload =
   | NodeChangePayload
@@ -65,7 +69,9 @@ export type PipelineChangePayload =
   | NodeDataPayload
   | NodeAddPayload
   | NodeDeletePayload
-  | FullSyncPayload;
+  | FullSyncPayload
+  | NodeChangesPayload
+  | EdgeChangesPayload;
 
 export interface PipelineChangeBroadcast {
   type: 'nodes' | 'edges' | 'node_data' | 'node_delete' | 'node_add' | 'full_sync';

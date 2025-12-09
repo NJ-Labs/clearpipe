@@ -332,7 +332,7 @@ export function ShareCanvasDialog({
     setSuccess(null);
     setInviteProgress({ current: 0, total: emailsToInvite.length });
 
-    const results = { success: 0, failed: 0, errors: [] as string[] };
+    const results = { success: 0, failed: 0, errors: [] as string[], emailsSent: 0, emailsFailed: 0 };
 
     for (let i = 0; i < emailsToInvite.length; i++) {
       const emailToInvite = emailsToInvite[i];
@@ -349,7 +349,13 @@ export function ShareCanvasDialog({
         });
 
         if (res.ok) {
+          const data = await res.json();
           results.success++;
+          if (data.emailSent) {
+            results.emailsSent++;
+          } else {
+            results.emailsFailed++;
+          }
         } else {
           const data = await res.json();
           results.failed++;
@@ -372,7 +378,12 @@ export function ShareCanvasDialog({
 
     // Show results
     if (results.success > 0 && results.failed === 0) {
-      setSuccess(`Successfully invited ${results.success} member${results.success > 1 ? 's' : ''}`);
+      const emailStatus = results.emailsSent > 0 
+        ? ` (${results.emailsSent} invitation email${results.emailsSent > 1 ? 's' : ''} sent)`
+        : results.emailsFailed > 0 
+          ? ' (email notifications not configured)'
+          : '';
+      setSuccess(`Successfully invited ${results.success} member${results.success > 1 ? 's' : ''}${emailStatus}`);
     } else if (results.success > 0 && results.failed > 0) {
       setSuccess(`Invited ${results.success} member${results.success > 1 ? 's' : ''}, ${results.failed} failed`);
     } else if (results.failed > 0) {

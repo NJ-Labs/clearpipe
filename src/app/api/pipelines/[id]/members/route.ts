@@ -308,13 +308,18 @@ export async function POST(
                         user.email?.split('@')[0] || 
                         'A ClearPipe user';
 
-    await sendInviteEmail({
+    const emailResult = await sendInviteEmail({
       to: email,
       inviterName,
       inviterEmail: user.email || '',
       pipelineName: pipeline.name,
       shareUrl,
     });
+
+    // Log email result for debugging
+    if (!emailResult.success) {
+      console.warn('Failed to send invitation email:', emailResult.error);
+    }
 
     return NextResponse.json({
       id: member.id,
@@ -323,6 +328,10 @@ export async function POST(
       role: member.role,
       status: member.status,
       invitedAt: member.invited_at,
+      emailSent: emailResult.success,
+      emailError: emailResult.notConfigured 
+        ? 'Email service not configured' 
+        : emailResult.error,
     }, { status: 201 });
   } catch (error) {
     console.error('Error inviting member:', error);

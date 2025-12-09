@@ -89,8 +89,15 @@ async function sendWithResend({
   // Get the from email domain from environment or use default
   const fromEmail = process.env.RESEND_FROM_EMAIL || 'ClearPipe <onboarding@resend.dev>';
 
+  // Extract base URL from shareUrl for the logo
+  const baseUrl = new URL(shareUrl).origin;
+  const logoUrl = `${baseUrl}/images/logo_name.png`;
+
   const htmlContent = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="text-align: center; margin-bottom: 32px;">
+        <img src="${logoUrl}" alt="ClearPipe" style="height: 40px; width: auto;" />
+      </div>
       <h2 style="color: #4F46E5; margin-bottom: 24px;">You've been invited to collaborate!</h2>
       <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi ${toName},</p>
       <p style="color: #374151; font-size: 16px; line-height: 1.6;">

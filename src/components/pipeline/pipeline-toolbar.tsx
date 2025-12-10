@@ -28,13 +28,13 @@ import {
   FileUp,
   Play,
   RotateCcw,
-  MoreHorizontal,
   Plus,
   Ellipsis,
   Trash2,
   AlertCircle,
   CheckCircle2,
   Loader2,
+  Pencil,
 } from 'lucide-react';
 import { usePipelineStore } from '@/stores/pipeline-store';
 import { cn } from '@/lib/utils';
@@ -45,6 +45,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { CollaboratorAvatars } from '@/components/collaboration/collaborator-avatars';
 import UniqueLoading from '@/components/ui/morph-loading';
 import { useRouter } from 'next/navigation';
+import { useUnsavedChanges } from '@/components/ui/unsaved-changes-dialog';
 
 interface NodeExecutionResult {
   nodeId: string;
@@ -56,6 +57,11 @@ interface NodeExecutionResult {
   outputPaths?: Record<string, string>; // Named outputs: { OUTPUT_PATH: "/path/to/file", TRAIN_OUT: "/path/train.csv" }
   fileCount?: number;
   error?: string;
+}
+
+interface PipelineToolbarProps {
+  onSaveRef?: React.MutableRefObject<(() => void) | null>;
+  onSaveAsRef?: React.MutableRefObject<(() => void) | null>;
 }
 
 // Helper function to get execution order based on graph topology
@@ -113,7 +119,7 @@ function getSourceNode(nodeId: string, edges: PipelineEdge[], nodes: PipelineNod
   return nodes.find(n => n.id === incomingEdge.source) || null;
 }
 
-export function PipelineToolbar() {
+export function PipelineToolbar({ onSaveRef, onSaveAsRef }: PipelineToolbarProps = {}) {
   const {
     nodes,
     edges,
@@ -136,8 +142,11 @@ export function PipelineToolbar() {
   } = usePipelineStore();
 
   const router = useRouter();
+  
+  // Get the unsaved changes checker
+  const { checkUnsavedChanges } = useUnsavedChanges();
 
-  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [saveAsDialogOpen, setSaveAsDialogOpen] = useState(false);
   const [loadDialogOpen, setLoadDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -180,10 +189,47 @@ export function PipelineToolbar() {
     fetchShareStatus();
   }, [currentPipeline?.id]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (currentPipeline?.id) {
+      // Pipeline exists, save directly
+      await savePipeline(currentPipeline.name, currentPipeline.description || '');
+    } else {
+      // New pipeline, open Save As dialog
+      setPipelineName('');
+      setPipelineDescription('');
+      setSaveAsDialogOpen(true);
+    }
+  };
+
+  // Open the Save As dialog (for keyboard shortcut)
+  const openSaveAsDialog = () => {
+    setPipelineName(currentPipeline?.name ? `${currentPipeline.name} Copy` : '');
+    setPipelineDescription(currentPipeline?.description || '');
+    setSaveAsDialogOpen(true);
+  };
+
+  // Expose save functions to parent via refs (for keyboard shortcuts)
+  React.useEffect(() => {
+    if (onSaveRef) {
+      onSaveRef.current = handleSave;
+    }
+    if (onSaveAsRef) {
+      onSaveAsRef.current = openSaveAsDialog;
+    }
+    return () => {
+      if (onSaveRef) {
+        onSaveRef.current = null;
+      }
+      if (onSaveAsRef) {
+        onSaveAsRef.current = null;
+      }
+    };
+  }, [onSaveRef, onSaveAsRef, currentPipeline?.id, currentPipeline?.name, currentPipeline?.description]);
+
+  const handleRename = () => {
     if (pipelineName.trim()) {
       savePipeline(pipelineName.trim(), pipelineDescription.trim());
-      setSaveDialogOpen(false);
+      setRenameDialogOpen(false);
     }
   };
 
@@ -249,7 +295,23 @@ export function PipelineToolbar() {
     URL.revokeObjectURL(url);
   };
 
-  const handleImport = () => {
+  // Wrapper for new pipeline that checks for unsaved changes
+  const handleNewPipeline = () => {
+    checkUnsavedChanges({ type: 'new' }, () => {
+      createNewPipeline();
+    });
+  };
+
+  // Wrapper for loading a pipeline that checks for unsaved changes
+  const handleLoadPipeline = (pipelineId: string) => {
+    checkUnsavedChanges({ type: 'open', payload: pipelineId }, () => {
+      loadPipeline(pipelineId);
+      setLoadDialogOpen(false);
+    });
+  };
+
+  // Internal import function (called after unsaved check)
+  const doImport = () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
@@ -264,6 +326,11 @@ export function PipelineToolbar() {
       }
     };
     input.click();
+  };
+
+  // Wrapper for import that checks for unsaved changes
+  const handleImport = () => {
+    checkUnsavedChanges({ type: 'import' }, doImport);
   };
 
   const handleDeletePipeline = async (pipelineId: string, isCurrentPipeline: boolean = false) => {
@@ -700,22 +767,26 @@ export function PipelineToolbar() {
         <span className="text-sm font-medium">
           {currentPipeline?.name || 'Untitled Pipeline'}
         </span>
-        {isDirty && (
+        {currentPipeline?.id ? (
+          <div className="relative">
+            {isDirty && (
+              <span className="absolute -top-1 -left-1 w-2.5 h-2.5 bg-amber-500 rounded-full border-2 border-background z-10" />
+            )}
+            <Badge 
+              variant="secondary" 
+              className={cn(
+                "text-xs",
+                isPublic 
+                  ? "bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30" 
+                  : "bg-slate-500/20 text-slate-700 dark:text-slate-400 border-slate-500/30"
+              )}
+            >
+              {isPublic ? 'Shared' : 'Private'}
+            </Badge>
+          </div>
+        ) : isDirty && (
           <Badge variant="secondary" className="text-xs">
             Unsaved
-          </Badge>
-        )}
-        {!isDirty && currentPipeline?.id && (
-          <Badge 
-            variant="secondary" 
-            className={cn(
-              "text-xs",
-              isPublic 
-                ? "bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30" 
-                : "bg-slate-500/20 text-slate-700 dark:text-slate-400 border-slate-500/30"
-            )}
-          >
-            {isPublic ? 'Shared' : 'Private'}
           </Badge>
         )}
       </div>
@@ -731,68 +802,22 @@ export function PipelineToolbar() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-56">
-          <DropdownMenuItem onClick={createNewPipeline}>
+          <DropdownMenuItem onClick={handleNewPipeline}>
             <Plus className="w-4 h-4 mr-2" />
             New Pipeline
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           
-          <Dialog open={saveDialogOpen} onOpenChange={(open) => {
-            setSaveDialogOpen(open);
-            if (open && currentPipeline) {
-              setPipelineName(currentPipeline.name || '');
-              setPipelineDescription(currentPipeline.description || '');
-            }
-          }}>
-            <DialogTrigger asChild>
-              <DropdownMenuItem onSelect={(e) => e.preventDefault()} data-save-trigger>
-                <Save className="w-4 h-4 mr-2" />
-                Save
-              </DropdownMenuItem>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{currentPipeline ? 'Update Pipeline' : 'Save Pipeline'}</DialogTitle>
-                <DialogDescription>
-                  {currentPipeline 
-                    ? 'Update your pipeline with a new name or description.'
-                    : 'Give your pipeline a name and optional description.'}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Name</label>
-                  <Input
-                    value={pipelineName}
-                    onChange={(e) => setPipelineName(e.target.value)}
-                    placeholder="My ML Pipeline"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Description (optional)</label>
-                  <Input
-                    value={pipelineDescription}
-                    onChange={(e) => setPipelineDescription(e.target.value)}
-                    placeholder="A brief description..."
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setSaveDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleSave} disabled={!pipelineName.trim()}>
-                  {currentPipeline ? 'Update Pipeline' : 'Save Pipeline'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <DropdownMenuItem onClick={handleSave}>
+            <Save className="w-4 h-4 mr-2" />
+            Save
+          </DropdownMenuItem>
 
           <Dialog open={saveAsDialogOpen} onOpenChange={(open) => {
             setSaveAsDialogOpen(open);
-            if (open && currentPipeline) {
-              setPipelineName(`${currentPipeline.name || 'Untitled'} Copy`);
-              setPipelineDescription(currentPipeline.description || '');
+            if (open) {
+              setPipelineName(currentPipeline?.name ? `${currentPipeline.name} Copy` : '');
+              setPipelineDescription(currentPipeline?.description || '');
             }
           }}>
             <DialogTrigger asChild>
@@ -832,6 +857,55 @@ export function PipelineToolbar() {
                 </Button>
                 <Button onClick={handleSaveAs} disabled={!pipelineName.trim()}>
                   Save As
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={renameDialogOpen} onOpenChange={(open) => {
+            setRenameDialogOpen(open);
+            if (open && currentPipeline) {
+              setPipelineName(currentPipeline.name || '');
+              setPipelineDescription(currentPipeline.description || '');
+            }
+          }}>
+            <DialogTrigger asChild>
+              <DropdownMenuItem onSelect={(e) => e.preventDefault()} disabled={!currentPipeline?.id}>
+                <Pencil className="w-4 h-4 mr-2" />
+                Rename...
+              </DropdownMenuItem>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Rename Pipeline</DialogTitle>
+                <DialogDescription>
+                  Update your pipeline name or description.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Name</label>
+                  <Input
+                    value={pipelineName}
+                    onChange={(e) => setPipelineName(e.target.value)}
+                    placeholder="My ML Pipeline"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Description (optional)</label>
+                  <Input
+                    value={pipelineDescription}
+                    onChange={(e) => setPipelineDescription(e.target.value)}
+                    placeholder="A brief description..."
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setRenameDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleRename} disabled={!pipelineName.trim()}>
+                  Rename
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -881,8 +955,8 @@ export function PipelineToolbar() {
                         key={pipeline.id}
                         className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
                         onClick={() => {
-                          loadPipeline(pipeline.id);
                           setLoadDialogOpen(false);
+                          handleLoadPipeline(pipeline.id);
                         }}
                       >
                         <div>

@@ -8,6 +8,8 @@ interface KeyboardShortcutsOptions {
   onToggleLeftSidebar?: () => void;
   onToggleRightSidebar?: () => void;
   canvasRef?: React.RefObject<HTMLDivElement | null>;
+  onSave?: () => void;
+  onSaveAs?: () => void;
 }
 
 /**
@@ -18,6 +20,8 @@ export function useKeyboardShortcuts({
   onToggleLeftSidebar,
   onToggleRightSidebar,
   canvasRef,
+  onSave,
+  onSaveAs,
 }: KeyboardShortcutsOptions = {}) {
   const reactFlow = useReactFlow();
   const lastActionTimeRef = useRef<number>(0);
@@ -84,9 +88,7 @@ export function useKeyboardShortcuts({
       if (ctrlOrCmd && key === 's' && !event.shiftKey) {
         event.preventDefault();
         debounceAction(() => {
-          // Trigger save dialog or save directly if pipeline has a name
-          const saveButton = document.querySelector('[data-save-trigger]') as HTMLButtonElement;
-          saveButton?.click();
+          onSave?.();
         });
         return;
       }
@@ -95,8 +97,7 @@ export function useKeyboardShortcuts({
       if (ctrlOrCmd && key === 's' && event.shiftKey) {
         event.preventDefault();
         debounceAction(() => {
-          const saveAsButton = document.querySelector('[data-save-as-trigger]') as HTMLButtonElement;
-          saveAsButton?.click();
+          onSaveAs?.();
         });
         return;
       }
@@ -300,6 +301,8 @@ export function useKeyboardShortcuts({
     selectNode,
     onToggleLeftSidebar,
     onToggleRightSidebar,
+    onSave,
+    onSaveAs,
   ]);
 }
 

@@ -33,6 +33,7 @@ import {
 import { CollaboratorCursors } from '@/components/collaboration/collaborator-cursors';
 import { useAuth } from '@/lib/supabase/use-auth';
 import { useKeyboardShortcuts } from '@/components/hooks/use-keyboard-shortcuts';
+import { UnsavedChangesDialog } from '@/components/ui/unsaved-changes-dialog';
 
 // Edge context menu state
 interface EdgeContextMenu {
@@ -48,6 +49,10 @@ function PipelineCanvasInner() {
   const [showZoomIndicator, setShowZoomIndicator] = useState(false);
   const zoomTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [edgeContextMenu, setEdgeContextMenu] = useState<EdgeContextMenu | null>(null);
+  
+  // Refs for keyboard shortcut callbacks
+  const onSaveRef = useRef<(() => void) | null>(null);
+  const onSaveAsRef = useRef<(() => void) | null>(null);
   
   // Collaboration cursor tracking and broadcasting
   const { updateCursorPosition, broadcastPipelineChange, isConnected } = useCollaboration();
@@ -77,6 +82,8 @@ function PipelineCanvasInner() {
     onToggleLeftSidebar: toggleLeftSidebar,
     onToggleRightSidebar: toggleRightSidebar,
     canvasRef: reactFlowWrapper,
+    onSave: () => onSaveRef.current?.(),
+    onSaveAs: () => onSaveAsRef.current?.(),
   });
   
   // Track mouse movement on canvas for collaboration
@@ -397,7 +404,7 @@ function PipelineCanvasInner() {
             className="!bg-background border rounded-lg"
           />
           <Panel position="top-center">
-            <PipelineToolbar />
+            <PipelineToolbar onSaveRef={onSaveRef} onSaveAsRef={onSaveAsRef} />
           </Panel>
         </ReactFlow>
 
@@ -450,8 +457,9 @@ function PipelineCanvasInner() {
 }
 
 export function PipelineCanvas() {
-  // Get current pipeline ID from store
+  // Get current pipeline ID and dirty state from store
   const currentPipeline = usePipelineStore((state) => state.currentPipeline);
+  const isDirty = usePipelineStore((state) => state.isDirty);
   
   // Get current user info for collaboration
   const { user, loading: authLoading } = useAuth();
@@ -468,15 +476,17 @@ export function PipelineCanvas() {
   
   return (
     <ReactFlowProvider>
-      <CollaborationProvider 
-        pipelineId={currentPipeline?.id}
-        userId={user?.id}
-        userName={user?.name || user?.email?.split('@')[0]}
-        userEmail={user?.email}
-        userAvatar={user?.avatarUrl}
-      >
-        <PipelineCanvasInner />
-      </CollaborationProvider>
+      <UnsavedChangesDialog isDirty={isDirty}>
+        <CollaborationProvider 
+          pipelineId={currentPipeline?.id}
+          userId={user?.id}
+          userName={user?.name || user?.email?.split('@')[0]}
+          userEmail={user?.email}
+          userAvatar={user?.avatarUrl}
+        >
+          <PipelineCanvasInner />
+        </CollaborationProvider>
+      </UnsavedChangesDialog>
     </ReactFlowProvider>
   );
 }
